@@ -1,0 +1,4 @@
+/autogen/*.h
+/build/*
+build/*
+build
