@@ -60,7 +60,7 @@ void RayQuery::destroy()
 //--------------------------------------------------------------------------------------------------
 // Creation of the RQ pipeline
 //
-void RayQuery::create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
+void RayQuery::create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
 {
   MilliTimer timer;
   LOGI("Create Ray Query Pipeline");

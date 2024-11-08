@@ -30,6 +30,7 @@
 #include "nvpsystem.hpp"
 #include "nvvk/context_vk.hpp"
 #include "sample_example.hpp"
+#include "world_restir_renderer.hpp"
 
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
@@ -86,6 +87,9 @@ int main(int argc, char** argv)
       NVPSystem::exePath() + PROJECT_RELDIRECTORY,
       NVPSystem::exePath() + PROJECT_DOWNLOAD_RELDIRECTORY,
   };
+
+  //WorldRestirRenderer renderer111;
+  //renderer111.test();
 
   // Vulkan required extensions
   assert(glfwVulkanSupported() == 1);

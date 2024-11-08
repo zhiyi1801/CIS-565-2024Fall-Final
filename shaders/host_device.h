@@ -55,7 +55,8 @@ START_ENUM(SetBindings)
   S_OUT   = 1,  // Offscreen output image
   S_SCENE = 2,  // Scene data
   S_ENV   = 3,  // Environment / Sun & Sky
-  S_WF    = 4   // Wavefront extra data
+  S_RESTIR = 4,  // ReSTIR
+  S_WF    = 5   // Wavefront extra data
 END_ENUM();
 
 // Acceleration Structure - Set 0
@@ -83,6 +84,20 @@ START_ENUM(EnvBindings)
   eSunSky     = 0, 
   eHdr        = 1, 
   eImpSamples = 2 
+END_ENUM();
+
+// ReSTIR - Set 4
+START_ENUM(ReSTIRBindings)
+eLastGbuffer = 0,
+eCurrentGbuffer = 1,
+eInitialReservoirs = 2,
+eReservoirs = 3,
+eAppend = 4,
+eFinal = 5,
+eCell = 6,
+eIndex = 7,
+eCheckSum = 8,
+eCellCounter = 9
 END_ENUM();
 
 START_ENUM(DebugMode)
@@ -280,5 +295,31 @@ struct SunAndSky
   int   in_use;
 };
 
+struct Reservoir
+{
+    vec3 vPos;
+    vec3 vNorm;
+    vec3 sPos;
+    vec3 sNorm;
+    vec3 radiance;
+
+    uint M;
+    float weightF; //the weight use for compute final illuminance W = Weight / (Mount * pdf)
+    uint age; //age the sample  > maxSampleAge will be discard
+};
+
+struct FinalSample
+{
+    vec3 dir;
+    vec3 Li;
+};
+
+struct HashAppendData
+{
+    uint isValid;
+    uint reservoirIdx;
+    uint cellIdx;
+    uint inCellIdx;
+};
 
 #endif  // COMMON_HOST_DEVICE

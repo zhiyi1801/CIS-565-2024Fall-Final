@@ -75,7 +75,7 @@ void RtxPipeline::destroy()
 //--------------------------------------------------------------------------------------------------
 // Creation of the pipeline and layout
 //
-void RtxPipeline::create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
+void RtxPipeline::create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
 {
   MilliTimer timer;
   LOGI("Create RtxPipeline");

@@ -39,7 +39,7 @@ public:
                    const VkExtent2D&                   size,
                    nvvk::ProfilerVK&                   profiler,
                    const std::vector<VkDescriptorSet>& extraDescSets) = 0;
-  virtual void create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& extraDescSetsLayout, Scene* _scene = nullptr) = 0;
+  virtual void create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* _scene = nullptr) = 0;
   virtual const std::string name() = 0;
   void                      setPushContants(const RtxState& state) { m_state = state; }
 

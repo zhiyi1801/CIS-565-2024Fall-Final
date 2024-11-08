@@ -32,6 +32,7 @@
 #include "shaders/host_device.h"
 #include "rayquery.hpp"
 #include "rtx_pipeline.hpp"
+#include "world_restir_renderer.hpp"
 #include "sample_example.hpp"
 #include "sample_gui.hpp"
 #include "tools.hpp"
@@ -76,6 +77,7 @@ void SampleExample::setup(const VkInstance&               instance,
   // Create and setup all renderers
   m_pRender[eRtxPipeline] = new RtxPipeline;
   m_pRender[eRayQuery]    = new RayQuery;
+  m_pRender[eReSTIR] = new WorldRestirRenderer;
   for(auto r : m_pRender)
   {
     r->setup(m_device, physicalDevice, queues[eTransfer].familyIndex, &m_alloc);
@@ -143,8 +145,11 @@ void SampleExample::loadAssets(const char* filename)
       for(auto& r : m_pRender)
         r->destroy();
 
+	  std::vector<VkDescriptorSetLayout> rtDescSetLayouts = { m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout };
+      //m_pRender[m_rndMethod]->create(
+      //    m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
       m_pRender[m_rndMethod]->create(
-          m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
+          m_size, rtDescSetLayouts, &m_scene);
     }
 
     if(extension == ".hdr")  //|| extension == ".exr")
@@ -332,8 +337,11 @@ void SampleExample::createRender(RndMethod method)
   }
   m_rndMethod = method;
 
+  std::vector<VkDescriptorSetLayout> rtDescSetLayouts = { m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout };
+  //m_pRender[m_rndMethod]->create(
+  //    m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
   m_pRender[m_rndMethod]->create(
-      m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
+      m_size, rtDescSetLayouts, &m_scene);
 }
 
 //--------------------------------------------------------------------------------------------------

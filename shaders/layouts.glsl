@@ -48,6 +48,18 @@ layout(set = S_ENV, binding = eSunSky,		scalar)		uniform _SSBuffer		{ SunAndSky 
 layout(set = S_ENV, binding = eHdr)						uniform sampler2D		environmentTexture;
 layout(set = S_ENV, binding = eImpSamples,  scalar)		buffer _EnvAccel		{ EnvAccel envSamplingData[]; };
 
+layout(set = S_RESTIR, binding = eLastGbuffer)       uniform readonly uimage2D lastGbuffer;
+layout(set = S_RESTIR, binding = eCurrentGbuffer)       uniform uimage2D thisGbuffer;
+
+layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
+layout(set = S_RESTIR, binding = eReservoirs, scalar)   buffer _Reservoirs { Reservoir reserviors[]; };
+layout(set = S_RESTIR, binding = eAppend, scalar)   buffer _AppendBuffer { HashAppendData appendBuffer[]; };
+layout(set = S_RESTIR, binding = eFinal, scalar)   buffer _FinalSamples { FinalSample finalSamples[]; };
+layout(set = S_RESTIR, binding = eCell, scalar)   buffer _CellStorageBuffer { uint cellStorageBuffer[]; };
+layout(set = S_RESTIR, binding = eIndex, scalar)   buffer _IndexBuffer { uint indexBuffer[]; };
+layout(set = S_RESTIR, binding = eCheckSum, scalar)   buffer _CheckSumBuffer { uint checkSumBuffer[]; };
+layout(set = S_RESTIR, binding = eCellCounter, scalar)   buffer _CellCounterBuffer { uint cellCounterBuffer[]; };
+
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };
 

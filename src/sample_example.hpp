@@ -87,6 +87,7 @@ public:
   {
     eRtxPipeline,
     eRayQuery,
+    eReSTIR,
     eNone,
   };
 

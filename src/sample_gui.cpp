@@ -181,7 +181,7 @@ bool SampleGUI::guiRayTracing()
   {
     SampleExample::RndMethod method = _se->m_rndMethod;
     if(GuiH::Selection<int>("Rendering Pipeline", "Choose the type of rendering", (int*)&method, nullptr,
-                            GuiH::Control::Flags::Normal, {"Ray Tracing Pipeline", "Ray Query"}))
+                            GuiH::Control::Flags::Normal, {"Ray Tracing Pipeline", "Ray Query", "ReSTIR"}))
     {
       _se->createRender(method);
       changed = true;
