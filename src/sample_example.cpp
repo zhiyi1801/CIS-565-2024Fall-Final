@@ -424,8 +424,11 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
-  m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
-                              {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
+  std::vector<VkDescriptorSet> descSets{ m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet };
+  m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler, descSets);
+
+  //m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
+  //                            {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
 
 
   // For automatic brightness tonemapping

@@ -83,6 +83,8 @@ void WorldRestirRenderer::update(const VkExtent2D& size)
 		m_pAlloc->destroy(m_IndexBuffer[i]);
 		m_pAlloc->destroy(m_CheckSumBuffer[i]);
 		m_pAlloc->destroy(m_CellCounter[i]);
+
+		m_pAlloc->destroy(m_testImage);
 	}
 	createImage();
 	createBuffer();
@@ -96,6 +98,7 @@ void WorldRestirRenderer::destroy()
 	m_pAlloc->destroy(m_FinalSample);
 	m_pAlloc->destroy(m_InitialReservoir);
 	m_pAlloc->destroy(m_AppendBuffer);
+	m_pAlloc->destroy(m_testImage);
 	m_pAlloc->destroy(m_Reservoirs[0]);
 	m_pAlloc->destroy(m_Reservoirs[1]);
 	m_pAlloc->destroy(m_CellStorage[0]);
@@ -155,6 +158,10 @@ void WorldRestirRenderer::createImage()
 			m_size, m_gbufferFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
 
+		auto testImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, m_testImageFormat,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
+
 		nvvk::Image gbimage1 = m_pAlloc->createImage(colorCreateInfo);
 		NAME_VK(gbimage1.image);
 		nvvk::Image gbimage2 = m_pAlloc->createImage(colorCreateInfo);
@@ -162,10 +169,17 @@ void WorldRestirRenderer::createImage()
 		VkImageViewCreateInfo ivInfo1 = nvvk::makeImageViewCreateInfo(gbimage1.image, colorCreateInfo);
 		VkImageViewCreateInfo ivInfo2 = nvvk::makeImageViewCreateInfo(gbimage2.image, colorCreateInfo);
 
+		nvvk::Image testImage = m_pAlloc->createImage(testImageCreateInfo);
+		NAME_VK(testImage.image);
+		VkImageViewCreateInfo ivInfoTest = nvvk::makeImageViewCreateInfo(testImage.image, testImageCreateInfo);
+
 		m_gbuffer[0] = m_pAlloc->createTexture(gbimage1, ivInfo1);
 		m_gbuffer[1] = m_pAlloc->createTexture(gbimage2, ivInfo2);
 		m_gbuffer[0].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		m_gbuffer[1].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		m_testImage = m_pAlloc->createTexture(testImage, ivInfoTest);
+		m_testImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
 	// Setting the image layout for both color and depth
@@ -174,6 +188,7 @@ void WorldRestirRenderer::createImage()
 		auto              cmdBuf = genCmdBuf.createCommandBuffer();
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_testImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		genCmdBuf.submitAndWait(cmdBuf);
 	}
 }
@@ -197,6 +212,8 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::eCheckSum, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCellCounter, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
+	m_bind.addBinding({ ReSTIRBindings::eTestImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+
 	m_descPool = m_bind.createPool(m_device, m_descSet.size(), VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
 	CREATE_NAMED_VK(m_descSetLayout, m_bind.createLayout(m_device));
 	CREATE_NAMED_VK(m_descSet[0], nvvk::allocateDescriptorSet(m_device, m_descPool, m_descSetLayout));
@@ -207,7 +224,7 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 10> writes;
+	std::array<VkWriteDescriptorSet, 11> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
@@ -236,13 +253,16 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes[8] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo);
 		writes[9] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo);
 
+		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestImage, &m_testImage.descriptor);
+
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}
 }
 
 #define GROUP_SIZE 8  // Same group size as in compute shader
-void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, const std::vector<VkDescriptorSet>& descSets)
+void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
+	descSets.push_back(m_descSet[(frames + 1) % 2]);
 	// Preparing for the compute shader
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
 	vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineLayout, 0,

@@ -17,7 +17,7 @@ public:
 	void setup(const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t familyIndex, nvvk::ResourceAllocator* allocator) override;
 	void destroy() override;
 	void create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* _scene = nullptr) override;
-	void run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, const std::vector<VkDescriptorSet>& descSets) override;
+	void run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames) override;
 	void update(const VkExtent2D& size);
 	void createBuffer();
 	void createImage();
@@ -37,8 +37,10 @@ private:
 
 	// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
 	VkFormat m_gbufferFormat{ VK_FORMAT_R32G32B32A32_UINT };
+	VkFormat m_testImageFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 
 	std::array<nvvk::Texture, 2> m_gbuffer;
+	nvvk::Texture m_testImage;
 
 	nvvk::Buffer m_InitialReservoir;
 	nvvk::Buffer m_AppendBuffer;

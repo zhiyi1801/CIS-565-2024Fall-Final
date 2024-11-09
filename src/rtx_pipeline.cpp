@@ -250,7 +250,7 @@ void RtxPipeline::createPipeline()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, const std::vector<VkDescriptorSet>& descSets)
+void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
   LABEL_SCOPE_VK(cmdBuf);
 

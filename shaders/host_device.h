@@ -97,7 +97,8 @@ eFinal = 5,
 eCell = 6,
 eIndex = 7,
 eCheckSum = 8,
-eCellCounter = 9
+eCellCounter = 9,
+eTestImage = 16
 END_ENUM();
 
 START_ENUM(DebugMode)

@@ -60,6 +60,8 @@ layout(set = S_RESTIR, binding = eIndex, scalar)   buffer _IndexBuffer { uint in
 layout(set = S_RESTIR, binding = eCheckSum, scalar)   buffer _CheckSumBuffer { uint checkSumBuffer[]; };
 layout(set = S_RESTIR, binding = eCellCounter, scalar)   buffer _CellCounterBuffer { uint cellCounterBuffer[]; };
 
+layout(set = S_RESTIR, binding = eTestImage)					uniform image2D			testImage;
+
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };
 
