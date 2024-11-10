@@ -33,7 +33,7 @@ vec3 Eval(State state, vec3 V, vec3 N, vec3 L, inout float pdf) {
 }
 
 vec3 Sample(State state, vec3 V, vec3 N, inout vec3 L, inout float pdf, inout RngStateType seed) {
-    return metallicWorkflowSample(state, N, V, vec3(rand(seed), rand(seed), rand(seed)), L, pdf);
+    return metallicWorkflowSample(state, N, V, L, pdf, seed);
 }
 
 vec3 EnvRadiance(vec3 dir) {
@@ -83,7 +83,7 @@ vec3 LightEval(State state, float dist, vec3 dir, out float pdf) {
         vec2 uv = state.texCoord;
         emission *= SRGBtoLINEAR(textureLod(texturesMap[nonuniformEXT(mat.emissiveTexture)], uv, 0)).rgb;
     }
-    return emission / state.area;
+    return emission/* / area*/;
 }
 
 vec2 SampleTriangleUniform(vec3 v0, vec3 v1, vec3 v2) {
@@ -131,7 +131,7 @@ float SampleTriangleLight(vec3 x, out LightSample lightSample) {
     }
     vec3 dir = y - x;
     float dist = length(dir);
-    lightSample.Li = emission / area;
+    lightSample.Li = emission/* / area*/;
     lightSample.wi = dir / dist;
     lightSample.dist = dist;
     return light.impSamp.pdf * (dist * dist) / (area * abs(dot(lightSample.wi, normal)));
@@ -391,6 +391,7 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
     float samplePdf;
     vec3 sampleWi;
     vec3 sampleBSDF;
+    Material lastMaterial;
     for (int depth = 0; depth < rtxState.maxDepth; depth++)
     {
         ClosestHit(r);
@@ -421,14 +422,14 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
                 env = texture(environmentTexture, uv).rgb;
                 Li = env;
             }
-            if (depth > 0)
+            if (depth > 0 /*&& lastMaterial.transmission == 0*/)
             {
                 float lightPdf;
                 Li = EnvEval(sampleWi, lightPdf);
                 MIS_weight = powerHeuristic(samplePdf, lightPdf);
             }
             // Done sampling return
-            return radiance + (Li * rtxState.hdrMultiplier * throughput);
+            return radiance + (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
         }
 
 
@@ -455,7 +456,7 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
         if (state.isEmitter) {
             float lightPdf;
             vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
-            float MIS_weight = depth == 0 ? 1.0f : powerHeuristic(samplePdf, lightPdf);
+            float MIS_weight = ((depth == 0 /*|| lastMaterial.transmission == 0*/) ? 1.0f : powerHeuristic(samplePdf, lightPdf));
             radiance += Li * throughput * MIS_weight;
             break;
         }
@@ -474,7 +475,7 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
         // MIS 
         vec3 Li, wi;
         float lightPdf = SampleDirectLight(state, Li, wi);
-        if (!IsPdfInvalid(lightPdf)) {
+        if (!IsPdfInvalid(lightPdf) /*&& lastMaterial.transmission == 0*/) {
             float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
             float weight = powerHeuristic(lightPdf, BSDFPdf);
             radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
@@ -491,6 +492,8 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
 
         r.origin = OffsetRay(state.position, state.ffnormal);
         r.direction = sampleWi;
+
+		lastMaterial = state.mat;
 
         //return radiance;
 
@@ -581,6 +584,105 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
     return radiance;
 }
 
+vec3 PathTrace_MetallicWorkflowNoMIS(Ray r)
+{
+    vec3 radiance = vec3(0.0);
+    vec3 throughput = vec3(1.0);
+    vec3 absorption = vec3(0.0);
+
+    float samplePdf;
+    vec3 sampleWi;
+    vec3 sampleBSDF;
+    Material lastMaterial;
+    for (int depth = 0; depth < rtxState.maxDepth; depth++)
+    {
+        ClosestHit(r);
+
+        // Hitting the environment
+        if (prd.hitT == INFINITY)
+        {
+            if (rtxState.debugging_mode != eNoDebug)
+            {
+                if (depth != rtxState.maxDepth - 1)
+                    return vec3(0);
+                if (rtxState.debugging_mode == eRadiance)
+                    return radiance;
+                else if (rtxState.debugging_mode == eWeight)
+                    return throughput;
+                else if (rtxState.debugging_mode == eRayDir)
+                    return (r.direction + vec3(1)) * 0.5;
+            }
+
+            vec3 env;
+            vec3 Li;
+            float MIS_weight = 1;
+            if (_sunAndSky.in_use == 1)
+                env = sun_and_sky(_sunAndSky, r.direction);
+            else
+            {
+                vec2 uv = GetSphericalUv(r.direction);  // See sampling.glsl
+                env = texture(environmentTexture, uv).rgb;
+                Li = env;
+            }
+            // Done sampling return
+            return radiance + (Li * rtxState.hdrMultiplier * throughput);
+        }
+
+
+        BsdfSampleRec bsdfSampleRec;
+
+        // Get Position, Normal, Tangents, Texture Coordinates, Color
+        State state = GetState(prd, r.direction);
+
+        //State state;
+        //state.position = sstate.position;
+        //state.normal = sstate.normal;
+        //state.tangent = sstate.tangent_u[0];
+        //state.bitangent = sstate.tangent_v[0];
+        //state.texCoord = sstate.text_coords[0];
+        //state.matID = sstate.matIndex;
+        //state.isEmitter = false;
+        //state.specularBounce = false;
+        //state.isSubsurface = false;
+        //state.ffnormal = dot(state.normal, r.direction) <= 0.0 ? state.normal : -state.normal;
+
+        // Filling material structures
+        GetMaterialsAndTextures(state, r);
+
+        if (state.isEmitter) {
+            float lightPdf;
+            vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
+            radiance += Li * throughput;
+            break;
+        }
+
+        //// Color at vertices
+        //state.mat.albedo *= sstate.color;
+
+        // Debugging info
+        if (rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
+        {
+            // return vec3(0.0f, 1.0f, 0.0f);
+            return DebugInfo(state);
+        }
+
+        vec3 wo = -r.direction;
+
+        sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
+
+        if (IsPdfInvalid(samplePdf)) {
+            break;
+        }
+
+        throughput *= sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
+
+        r.origin = OffsetRay(state.position, state.ffnormal);
+        r.direction = sampleWi;
+
+        lastMaterial = state.mat;
+    }
+    return radiance;
+}
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------

@@ -143,17 +143,133 @@ vec3 metallicWorkflowEval(State state, vec3 n, vec3 wo, vec3 wi, out float pdf) 
     return mix(baseColor * PiInv * (1.0 - metallic), vec3(g * d / (4.0 * cosI * cosO)), f);
 }
 
-float metallicWorkflowSample(State state, vec3 n, vec3 wo, vec3 r, out vec3 bsdf, out vec3 dir) {
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+vec3 GgxSampling(float specularAlpha, float r1, float r2)
+{
+    float phi = r1 * 2.0 * M_PI;
+
+    float cosTheta = sqrt((1.0 - r2) / (1.0 + (specularAlpha * specularAlpha - 1.0) * r2));
+    float sinTheta = clamp(sqrt(1.0 - (cosTheta * cosTheta)), 0.0, 1.0);
+    float sinPhi = sin(phi);
+    float cosPhi = cos(phi);
+
+    return vec3(sinTheta * cosPhi, sinTheta * sinPhi, cosTheta);
+}
+
+// The following equation models the Fresnel reflectance term of the spec equation (aka F())
+// Implementation of fresnel from [4], Equation 15
+vec3 F_Schlick(vec3 f0, vec3 f90, float VdotH)
+{
+    return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+}
+
+float F_Schlick(float f0, float f90, float VdotH)
+{
+    return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+}
+
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+vec3 EvalDielectricRefractionGltf(State state, vec3 V, vec3 N, vec3 L, vec3 H, inout float pdf)
+{
+    pdf = abs(dot(N, L));
+    return state.mat.albedo;
+}
+
+float metallicWorkflowSample(State state, vec3 n, vec3 wo, out vec3 bsdf, out vec3 dir, inout RngStateType seed) {
+
+    float transWeight = (1.0 - state.mat.metallic) * state.mat.transmission;
+
+    float r1 = rand(seed);
+    float r2 = rand(seed);
+
+    // TODO
+	// Trasmission
+  //  if (rand(seed) < transWeight)
+  //  {
+  //      float eta = state.eta;
+
+  //      float n1 = 1.0;
+  //      float n2 = state.mat.ior;
+  //      float R0 = (n1 - n2) / (n1 + n2);
+  //      vec3  H = GgxSampling(state.mat.roughness, r1, r2);
+  //      H = state.tangent * H.x + state.bitangent * H.y + n * H.z;
+  //      float VdotH = dot(wo, H);
+  //      float F = F_Schlick(R0 * R0, 1.0, VdotH);           // Reflection
+  //      float discriminat = 1.0 - eta * eta * (1.0 - VdotH * VdotH);  // (Total internal reflection)
+
+  //      if (state.mat.thinwalled)
+  //      {
+  //          // If inside surface, don't reflect
+  //          if (dot(state.ffnormal, state.normal) < 0.0)
+  //          {
+  //              F = 0;
+  //              discriminat = 0;
+  //          }
+  //          eta = 1.00;  // go through
+  //      }
+
+  //      // Reflection/Total internal reflection
+  //      if (discriminat < 0.0 || rand(seed) < F)
+  //      {
+  //          dir = normalize(reflect(-wo, H));
+  //          bsdf = vec3(10.0f, 0.0, 0.0);
+  //      }
+  //      else
+  //      {
+  //          // Find the pure refractive ray
+  //          dir = normalize(refract(-wo, H, eta));
+
+  //          // Cought rays perpendicular to surface, and simply continue
+  //          if (isnan(dir.x) || isnan(dir.y) || isnan(dir.z))
+  //          {
+  //              dir = -wo;
+  //          }
+  //      }
+
+  //      // Transmission
+  //      float pdf;
+  //      bsdf = EvalDielectricRefractionGltf(state, wo, n, dir, H, pdf);
+		//return pdf;
+  //  }
+
+	// Metallic Workflow
+    //else
+    //{
+    //    float roughness = state.mat.roughness;
+    //    float metallic = state.mat.metallic;
+    //    //float alpha = roughness * roughness;
+    //    float alpha = roughness;
+
+    //    if (rand(seed) > (1.0 / (2.0 - metallic))) {
+    //        dir = sampleHemisphereCosine(n, vec2(rand(seed), rand(seed)));
+    //    }
+    //    else {
+    //        vec3 h = GTR2Sample(n, wo, alpha, vec2(rand(seed), rand(seed)));
+    //        dir = -reflect(wo, h);
+    //    }
+
+    //    if (dot(n, dir) < 0.0) {
+    //        return InvalidPdf;
+    //    }
+    //    else {
+    //        bsdf = metallicWorkflowBSDF(state, n, wo, dir);
+    //        bsdf *= (1.0 - transWeight);
+    //        return (1.0 - transWeight) * metallicWorkflowPdf(state, n, wo, dir);
+    //    }
+    //}
+
     float roughness = state.mat.roughness;
     float metallic = state.mat.metallic;
     //float alpha = roughness * roughness;
     float alpha = roughness;
 
-    if (r.z > (1.0 / (2.0 - metallic))) {
-        dir = sampleHemisphereCosine(n, r.xy);
+    if (rand(seed) > (1.0 / (2.0 - metallic))) {
+        dir = sampleHemisphereCosine(n, vec2(rand(seed), rand(seed)));
     }
     else {
-        vec3 h = GTR2Sample(n, wo, alpha, r.xy);
+        vec3 h = GTR2Sample(n, wo, alpha, vec2(rand(seed), rand(seed)));
         dir = -reflect(wo, h);
     }
 
@@ -162,13 +278,14 @@ float metallicWorkflowSample(State state, vec3 n, vec3 wo, vec3 r, out vec3 bsdf
     }
     else {
         bsdf = metallicWorkflowBSDF(state, n, wo, dir);
-        return metallicWorkflowPdf(state, n, wo, dir);
+        bsdf *= (1.0 - transWeight);
+        return (1.0 - transWeight) * metallicWorkflowPdf(state, n, wo, dir);
     }
 }
 
-vec3 metallicWorkflowSample(State state, vec3 n, vec3 wo, vec3 r, out vec3 dir, out float pdf) {
+vec3 metallicWorkflowSample(State state, vec3 n, vec3 wo, out vec3 dir, out float pdf, inout RngStateType seed) {
     vec3 bsdf;
-    pdf = metallicWorkflowSample(state, n, wo, r, bsdf, dir);
+    pdf = metallicWorkflowSample(state, n, wo, bsdf, dir, seed);
     return bsdf;
 }
 

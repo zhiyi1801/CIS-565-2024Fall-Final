@@ -270,7 +270,7 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	// Sending the push constant information
 	// TODO
-	m_state.environmentProb = 1.0;
+	m_state.environmentProb = 0.5;
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
 
 	// Dispatching the shader
