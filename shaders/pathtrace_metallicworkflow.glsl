@@ -388,6 +388,9 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
     vec3 throughput = vec3(1.0);
     vec3 absorption = vec3(0.0);
 
+    float samplePdf;
+    vec3 sampleWi;
+    vec3 sampleBSDF;
     for (int depth = 0; depth < rtxState.maxDepth; depth++)
     {
         ClosestHit(r);
@@ -408,15 +411,24 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
             }
 
             vec3 env;
+            vec3 Li;
+            float MIS_weight = 1;
             if (_sunAndSky.in_use == 1)
                 env = sun_and_sky(_sunAndSky, r.direction);
             else
             {
                 vec2 uv = GetSphericalUv(r.direction);  // See sampling.glsl
                 env = texture(environmentTexture, uv).rgb;
+                Li = env;
+            }
+            if (depth > 0)
+            {
+                float lightPdf;
+                Li = EnvEval(sampleWi, lightPdf);
+                MIS_weight = powerHeuristic(samplePdf, lightPdf);
             }
             // Done sampling return
-            return radiance + (env * rtxState.hdrMultiplier * throughput);
+            return radiance + (Li * rtxState.hdrMultiplier * throughput);
         }
 
 
@@ -440,6 +452,14 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
         // Filling material structures
         GetMaterialsAndTextures(state, r);
 
+        if (state.isEmitter) {
+            float lightPdf;
+            vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
+            float MIS_weight = depth == 0 ? 1.0f : powerHeuristic(samplePdf, lightPdf);
+            radiance += Li * throughput * MIS_weight;
+            break;
+        }
+
         // Color at vertices
         state.mat.albedo *= sstate.color;
 
@@ -460,7 +480,19 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
             radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
                 throughput / lightPdf * weight;
         }
-        return radiance;
+
+        sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
+
+        if (IsPdfInvalid(samplePdf)) {
+            break;
+        }
+
+        throughput *= sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
+
+        r.origin = OffsetRay(state.position, state.ffnormal);
+        r.direction = sampleWi;
+
+        //return radiance;
 
         //// KHR_materials_unlit
         //if (state.mat.unlit)

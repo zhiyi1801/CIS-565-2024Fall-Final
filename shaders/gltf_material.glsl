@@ -131,6 +131,8 @@ void GetMaterialsAndTextures(inout State state, in Ray r)
   if(material.emissiveTexture > -1)
     state.mat.emission *=
         SRGBtoLINEAR(textureLod(texturesMap[nonuniformEXT(material.emissiveTexture)], state.texCoord, 0)).rgb;
+  if ((state.mat.emission.x + state.mat.emission.y + state.mat.emission.z) > 1e-3) state.isEmitter = true;
+  else state.isEmitter = false;
 
   // Basic material
   GetMetallicRoughness(state, material);
