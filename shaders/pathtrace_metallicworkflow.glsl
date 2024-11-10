@@ -214,7 +214,7 @@ vec3 DirectLight(State state, vec3 wo) { // importance sample on light sources
     if (Occlusion(shadowRay, state, lightSample.dist)) {
         return vec3(0.0);
     }
-    return lightSample.Li * Eval(state, -wo, state.ffnormal, lightSample.wi, dummyPdf) *
+    return lightSample.Li * Eval(state, wo, state.ffnormal, lightSample.wi, dummyPdf) *
         max(dot(state.ffnormal, lightSample.wi), 0.0) / pdf;
 }
 
@@ -370,6 +370,8 @@ vec3 DebugInfo(in State state) {
         return state.mat.albedo;
     case eEmissive:
         return state.mat.emission;
+    case eAlpha:
+        return vec3(state.mat.alpha);
     case eRoughness:
         return vec3(state.mat.roughness);
     case eTexcoord:
@@ -441,11 +443,24 @@ vec3 PathTrace_MetallicWorkflow(Ray r)
         // Color at vertices
         state.mat.albedo *= sstate.color;
 
-        return DirectLight(state, r.direction);
+        // Debugging info
+        if (rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
+        {
+            // return vec3(0.0f, 1.0f, 0.0f);
+            return DebugInfo(state);
+        }
 
-        //// Debugging info
-        //if (rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
-        //    return DebugInfo(state);
+        vec3 wo = -r.direction;
+        // MIS 
+        vec3 Li, wi;
+        float lightPdf = SampleDirectLight(state, Li, wi);
+        if (!IsPdfInvalid(lightPdf)) {
+            float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
+            float weight = powerHeuristic(lightPdf, BSDFPdf);
+            radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
+                throughput / lightPdf * weight;
+        }
+        return radiance;
 
         //// KHR_materials_unlit
         //if (state.mat.unlit)

@@ -115,7 +115,7 @@ void main()
     pixelColor    = temperature(val);
 
     // Wrap & SM visualization
-    // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1);
+    // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1)
   }
 
   // Saving pixel color

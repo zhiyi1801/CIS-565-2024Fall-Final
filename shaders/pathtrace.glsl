@@ -275,6 +275,7 @@ vec3 PathTrace(Ray r)
 
     // Light and environment contribution
     VisibilityContribution vcontrib = DirectLight(r, state);
+	// return vcontrib.radiance * throughput;
     vcontrib.radiance *= throughput;
 
     // Sampling for the next ray
