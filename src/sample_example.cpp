@@ -94,6 +94,8 @@ void SampleExample::loadScene(const std::string& filename)
   m_scene.load(filename);
   m_accelStruct.create(m_scene.getScene(), m_scene.getBuffers(Scene::eVertex), m_scene.getBuffers(Scene::eIndex));
 
+  m_rtxState.lightLuminIntegInv = 1.f / (m_scene.m_trigLightWeight + m_scene.m_puncLightWeight);
+
   // The picker is the helper to return information from a ray hit under the mouse cursor
   m_picker.setTlas(m_accelStruct.getTlas());
   resetFrame();
@@ -110,6 +112,7 @@ void SampleExample::loadEnvironmentHdr(const std::string& hdrFilename)
   timer.print();
 
   m_rtxState.fireflyClampThreshold = m_skydome.getIntegral() * 4.f;  // magic
+  m_rtxState.envMapLuminIntegInv = 1.f / m_skydome.getIntegral();
 }
 
 

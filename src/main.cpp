@@ -32,6 +32,8 @@
 #include "sample_example.hpp"
 #include "world_restir_renderer.hpp"
 
+#include "host_defines.h"
+
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
 
@@ -53,9 +55,12 @@ static int const SAMPLE_HEIGHT = 720;
 //
 int main(int argc, char** argv)
 {
+    uint aaa = sizeof(Reservoir);
+	uint bbb = sizeof(LightBufInfo);
+
   InputParser parser(argc, argv);
   std::string sceneFile   = parser.getString("-f", "robot_toon/robot-toon.gltf");
-  std::string hdrFilename = parser.getString("-e", "std_env.hdr");
+  std::string hdrFilename = parser.getString("-e", "2x2.png");
 
   // Setup GLFW window
   glfwSetErrorCallback(onErrorCallback);

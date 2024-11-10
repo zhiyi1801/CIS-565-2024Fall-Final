@@ -119,6 +119,8 @@ struct State
 
   uint     matID;
   Material mat;
+
+  float area;
 };
 
 
@@ -139,5 +141,11 @@ struct LightSampleRec
   float pdf;
 };
 
+// ReSTIR
+struct LightSample {
+	vec3 Li;
+	vec3 wi;
+	float dist;
+};
 
 #endif  // GLOBALS_GLSL

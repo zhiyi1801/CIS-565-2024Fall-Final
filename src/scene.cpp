@@ -91,11 +91,18 @@ bool Scene::load(const std::string& filename)
   NAME_VK(m_buffer[eCameraMat].buffer);
 
   createMaterialBuffer(cmdBuf, gltf);
-  createLightBuffer(cmdBuf, gltf);
+  createPuncLightBuffer(cmdBuf, gltf);
+  // createLightBuffer(cmdBuf, gltf);
   createTextureImages(cmdBuf, tmodel);
   createVertexBuffer(cmdBuf, gltf);
   createInstanceDataBuffer(cmdBuf, gltf);
+  createTrigLightBuffer(cmdBuf, gltf, tmodel);
 
+  // light buffer info buffer
+  if (m_lightBufInfo.puncLightSize > 0 || m_lightBufInfo.trigLightSize > 0)
+      m_lightBufInfo.trigSampProb = m_trigLightWeight / (m_trigLightWeight + m_puncLightWeight);
+  m_buffer[eLightBufInfo] = m_pAlloc->createBuffer(cmdBuf, sizeof(LightBufInfo), &m_lightBufInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+  NAME_VK(m_buffer[eLightBufInfo].buffer);
 
   // Finalizing the command buffer - upload data to GPU
   LOGI(" <Finalize>");
@@ -301,36 +308,131 @@ void Scene::setCameraFromScene(const std::string& filename, const nvh::GltfScene
 //--------------------------------------------------------------------------------------------------
 // Create a buffer of all lights
 //
-void Scene::createLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf)
+void Scene::createPuncLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf)
 {
-  std::vector<Light> all_lights;
-  for(const auto& l_gltf : gltf.m_lights)
-  {
-    Light l{};
-    l.position  = glm::vec3(l_gltf.worldMatrix * glm::vec4(0, 0, 0, 1));
-    l.direction = glm::vec3(l_gltf.worldMatrix * glm::vec4(0, 0, -1, 0));
-    if(!l_gltf.light.color.empty())
-      l.color = glm::vec3(l_gltf.light.color[0], l_gltf.light.color[1], l_gltf.light.color[2]);
-    else
-      l.color = glm::vec3(1, 1, 1);
-    l.innerConeCos = static_cast<float>(cos(l_gltf.light.spot.innerConeAngle));
-    l.outerConeCos = static_cast<float>(cos(l_gltf.light.spot.outerConeAngle));
-    l.range        = static_cast<float>(l_gltf.light.range);
-    l.intensity    = static_cast<float>(l_gltf.light.intensity);
-    if(l_gltf.light.type == "point")
-      l.type = LightType_Point;
-    else if(l_gltf.light.type == "directional")
-      l.type = LightType_Directional;
-    else if(l_gltf.light.type == "spot")
-      l.type = LightType_Spot;
-    all_lights.emplace_back(l);
-  }
+    std::vector<PuncLight> all_punc_lights;
+    for (const auto& l_gltf : gltf.m_lights)
+    {
+        PuncLight l{};
+        l.position = l_gltf.worldMatrix * nvmath::vec4f(0, 0, 0, 1);
+        l.direction = l_gltf.worldMatrix * nvmath::vec4f(0, 0, -1, 0);
+        if (!l_gltf.light.color.empty())
+            l.color = nvmath::vec3f(l_gltf.light.color[0], l_gltf.light.color[1], l_gltf.light.color[2]);
+        else
+            l.color = nvmath::vec3f(1, 1, 1);
+        l.innerConeCos = static_cast<float>(cos(l_gltf.light.spot.innerConeAngle));
+        l.outerConeCos = static_cast<float>(cos(l_gltf.light.spot.outerConeAngle));
+        l.range = static_cast<float>(l_gltf.light.range);
+        l.intensity = static_cast<float>(l_gltf.light.intensity);
+        if (l_gltf.light.type == "point")
+            l.type = LightType_Point;
+        else if (l_gltf.light.type == "directional")
+            l.type = LightType_Directional;
+        else if (l_gltf.light.type == "spot")
+            l.type = LightType_Spot;
+        all_punc_lights.emplace_back(l);
+    }
 
-  if(all_lights.empty())  // Cannot be null
-    all_lights.emplace_back(Light{});
-  m_buffer[eLights] = m_pAlloc->createBuffer(cmdBuf, all_lights, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  NAME_VK(m_buffer[eLights].buffer);
+    m_lightBufInfo.puncLightSize = all_punc_lights.size();
+    if (!all_punc_lights.empty()) {
+        m_puncLightWeight = createPuncLightImptSampAccel(all_punc_lights, gltf);
+    }
+
+    if (all_punc_lights.empty())  // Cannot be null
+        all_punc_lights.emplace_back(PuncLight{});
+    m_buffer[ePuncLights] = m_pAlloc->createBuffer(cmdBuf, all_punc_lights, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    NAME_VK(m_buffer[ePuncLights].buffer);
 }
+
+void Scene::createTrigLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf, const tinygltf::Model& gltfModel)
+{
+    std::vector<TrigLight> trigLights;
+    std::vector<nvmath::mat4f> transforms;
+
+    for (const auto& node : gltf.m_nodes)
+    {
+        const auto& primMesh = gltf.m_primMeshes[node.primMesh];
+        nvh::GltfMaterial mat = gltf.m_materials[primMesh.materialIndex];
+
+        if (luminance(mat.emissiveFactor) > 1e-2f) {
+            //std::cout << luminance(mat.emissiveFactor) << " Emissive\n";
+
+            // so far we only test static light sources .
+            //transforms.push_back(node.worldMatrix); // nvmath is col-major
+            for (uint32_t idx = primMesh.firstIndex; idx < primMesh.firstIndex + primMesh.indexCount - 1; idx += 3) {
+                TrigLight trig;
+                //VertexAttributes vert0 = (*m_pVertices)[(*m_pIndices)[idx]];
+                //VertexAttributes vert1 = (*m_pVertices)[(*m_pIndices)[idx + 1]];
+                //VertexAttributes vert2 = (*m_pVertices)[(*m_pIndices)[idx + 2]];
+
+                uint32_t index0 = gltf.m_indices[idx] + primMesh.vertexOffset;
+                uint32_t index1 = gltf.m_indices[idx + 1] + primMesh.vertexOffset;
+                uint32_t index2 = gltf.m_indices[idx + 2] + primMesh.vertexOffset;
+                trig.transformIndex = transforms.size() - 1;
+                trig.matIndex = primMesh.materialIndex;
+                trig.v0 = gltf.m_positions[index0];
+                trig.uv0 = gltf.m_texcoords0[index0];
+                trig.v1 = gltf.m_positions[index1];
+                trig.uv1 = gltf.m_texcoords0[index1];
+                trig.v2 = gltf.m_positions[index2];
+                trig.uv2 = gltf.m_texcoords0[index2];
+
+                trig.v0 = node.worldMatrix * vec4(trig.v0, 1.0);
+                trig.v1 = node.worldMatrix * vec4(trig.v1, 1.0);
+                trig.v2 = node.worldMatrix * vec4(trig.v2, 1.0);
+
+                trigLights.push_back(trig);
+            }
+        }
+    }
+    m_trigLightWeight = createTrigLightImptSampAccel(trigLights, gltf, gltfModel);
+
+    m_lightBufInfo.trigLightSize = trigLights.size();
+    if (trigLights.empty()) {  // Cannot be null
+        trigLights.emplace_back(TrigLight{});
+    }
+    if (transforms.empty()) {
+        transforms.emplace_back(nvmath::mat4f{});
+    }
+    m_buffer[eTrigLights] = m_pAlloc->createBuffer(cmdBuf, trigLights, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    NAME_VK(m_buffer[eTrigLights].buffer);
+    // m_buffer[eTrigLightTransforms] = m_pAlloc->createBuffer(cmdBuf, transforms, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    // NAME_VK(m_buffer[eTrigLightTransforms].buffer);
+}
+
+////--------------------------------------------------------------------------------------------------
+//// Create a buffer of all lights
+////
+//void Scene::createLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf)
+//{
+//  std::vector<Light> all_lights;
+//  for(const auto& l_gltf : gltf.m_lights)
+//  {
+//    Light l{};
+//    l.position  = glm::vec3(l_gltf.worldMatrix * glm::vec4(0, 0, 0, 1));
+//    l.direction = glm::vec3(l_gltf.worldMatrix * glm::vec4(0, 0, -1, 0));
+//    if(!l_gltf.light.color.empty())
+//      l.color = glm::vec3(l_gltf.light.color[0], l_gltf.light.color[1], l_gltf.light.color[2]);
+//    else
+//      l.color = glm::vec3(1, 1, 1);
+//    l.innerConeCos = static_cast<float>(cos(l_gltf.light.spot.innerConeAngle));
+//    l.outerConeCos = static_cast<float>(cos(l_gltf.light.spot.outerConeAngle));
+//    l.range        = static_cast<float>(l_gltf.light.range);
+//    l.intensity    = static_cast<float>(l_gltf.light.intensity);
+//    if(l_gltf.light.type == "point")
+//      l.type = LightType_Point;
+//    else if(l_gltf.light.type == "directional")
+//      l.type = LightType_Directional;
+//    else if(l_gltf.light.type == "spot")
+//      l.type = LightType_Spot;
+//    all_lights.emplace_back(l);
+//  }
+//
+//  if(all_lights.empty())  // Cannot be null
+//    all_lights.emplace_back(Light{});
+//  m_buffer[eLights] = m_pAlloc->createBuffer(cmdBuf, all_lights, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+//  NAME_VK(m_buffer[eLights].buffer);
+//}
 
 //--------------------------------------------------------------------------------------------------
 // Create a buffer of all materials
@@ -595,17 +697,18 @@ void Scene::createDescriptorSet(const nvh::GltfScene& gltf)
   bind.addBinding({SceneBindings::eMaterials, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag});
   bind.addBinding({SceneBindings::eTextures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTextures, flag});
   bind.addBinding({SceneBindings::eInstData, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag});
-  bind.addBinding({SceneBindings::eLights, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag});
+  bind.addBinding({SceneBindings::ePuncLights, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag});
+  bind.addBinding({ SceneBindings::eTrigLights, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+  bind.addBinding({ SceneBindings::eLightBufInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, flag });
 
   m_descPool = bind.createPool(m_device, 1);
   CREATE_NAMED_VK(m_descSetLayout, bind.createLayout(m_device));
   CREATE_NAMED_VK(m_descSet, nvvk::allocateDescriptorSet(m_device, m_descPool, m_descSetLayout));
 
-  std::array<VkDescriptorBufferInfo, 5> dbi;
-  dbi[eCameraMat] = VkDescriptorBufferInfo{m_buffer[eCameraMat].buffer, 0, VK_WHOLE_SIZE};
-  dbi[eMaterial]  = VkDescriptorBufferInfo{m_buffer[eMaterial].buffer, 0, VK_WHOLE_SIZE};
-  dbi[eInstData]  = VkDescriptorBufferInfo{m_buffer[eInstData].buffer, 0, VK_WHOLE_SIZE};
-  dbi[eLights]    = VkDescriptorBufferInfo{m_buffer[eLights].buffer, 0, VK_WHOLE_SIZE};
+  std::vector<VkDescriptorBufferInfo> dbi(m_buffer.size());
+  for (int i = 0; i < m_buffer.size(); i++) {
+      dbi[i] = VkDescriptorBufferInfo{ m_buffer[i].buffer, 0, VK_WHOLE_SIZE };
+  }
 
   // array of images
   std::vector<VkDescriptorImageInfo> t_info;
@@ -616,7 +719,9 @@ void Scene::createDescriptorSet(const nvh::GltfScene& gltf)
   writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eCamera, &dbi[eCameraMat]));
   writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eMaterials, &dbi[eMaterial]));
   writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eInstData, &dbi[eInstData]));
-  writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eLights, &dbi[eLights]));
+  writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::ePuncLights, &dbi[ePuncLights]));
+  writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eTrigLights, &dbi[eTrigLights]));
+  writes.emplace_back(bind.makeWrite(m_descSet, SceneBindings::eLightBufInfo, &dbi[eLightBufInfo]));
   writes.emplace_back(bind.makeWriteArray(m_descSet, SceneBindings::eTextures, t_info.data()));
 
   // Writing the information
@@ -665,4 +770,94 @@ void Scene::updateCamera(const VkCommandBuffer& cmdBuf, float aspectRatio)
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &afterBarrier, 0, nullptr);
+}
+
+#include "alias_method.hpp"
+
+float Scene::createPuncLightImptSampAccel(std::vector<PuncLight>& puncLights, const nvh::GltfScene& gltf)
+{
+    float total_weight{ 0.f };
+
+    std::vector<float> distrib;
+
+    for (const auto& light : puncLights)
+    {
+        float power = luminance(light.color) * light.intensity * 3.1416f * 4.f;
+        distrib.push_back(power);
+        total_weight += power;
+    }
+
+    DiscreteSampler1D<float> aliasTable(distrib);
+
+    for (size_t i = 0; i < distrib.size(); i++)
+    {
+        auto& alias = puncLights[i].impSamp;
+        auto& table = aliasTable.binomDistribs[i];
+        alias.alias = table.failId;
+        alias.q = table.prob;
+        alias.pdf = distrib[i] / total_weight;
+        alias.aliasPdf = distrib[table.failId] / total_weight;
+    }
+
+    return total_weight;
+}
+
+float Scene::computeTrigIntensity(const TrigLight& trig, const nvh::GltfMaterial& mtl, const tinygltf::Model& gltfModel) {
+    float intensity;
+    if (mtl.emissiveTexture > -1) {
+        auto texture = gltfModel.textures[mtl.emissiveTexture];
+        // TODO
+        intensity = luminance(mtl.emissiveFactor);
+    }
+    else {
+        intensity = luminance(mtl.emissiveFactor);
+    }
+    return intensity;
+}
+
+float Scene::createTrigLightImptSampAccel(std::vector<TrigLight>& trigLights, const nvh::GltfScene& gltf, const tinygltf::Model& gltfModel)
+{
+    float total_weight{ 0.f };
+    std::vector<float> distrib;
+    distrib.reserve(trigLights.size());
+    for (int i = 0; i < trigLights.size(); ++i)
+    {
+        auto& trig = trigLights[i];
+        nvh::GltfMaterial mtl = gltf.m_materials[trig.matIndex];
+        float power;
+
+        if (mtl.emissiveTexture > -1) {
+            //TODO
+            power = luminance(mtl.emissiveFactor);
+        }
+        else power = luminance(mtl.emissiveFactor);
+        distrib.push_back(power);
+        total_weight += power;
+    }
+    //for (auto& trig : trigLights) {
+    //    nvh::GltfMaterial mtl = gltf.m_materials[trig.matIndex];
+    //    float power;
+
+    //    if (mtl.emissiveTexture > -1) {
+    //        //TODO
+    //        power = luminance(mtl.emissiveFactor);
+    //    }
+    //    else power = luminance(mtl.emissiveFactor);
+    //    distrib.push_back(power);
+    //    total_weight += power;
+    //}
+
+    DiscreteSampler1D<float> aliasTable(distrib);
+
+    for (size_t i = 0; i < trigLights.size(); i++)
+    {
+        auto& alias = trigLights[i].impSamp;
+        auto& table = aliasTable.binomDistribs[i];
+        alias.alias = table.failId;
+        alias.q = table.prob;
+        alias.pdf = distrib[i] / total_weight;
+        alias.aliasPdf = distrib[table.failId] / total_weight;
+    }
+
+    return total_weight;
 }

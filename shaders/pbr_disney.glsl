@@ -27,6 +27,7 @@
 
 #include "globals.glsl"
 #include "random.glsl"
+#include "common.glsl"
 
 /*
  * MIT License
@@ -221,12 +222,12 @@ vec3 UniformSampleSphere(float r1, float r2)
 }
 
 //-----------------------------------------------------------------------
-float powerHeuristic(float a, float b)
-//-----------------------------------------------------------------------
-{
-  float t = a * a;
-  return t / (b * b + t);
-}
+//float powerHeuristic(float a, float b)
+////-----------------------------------------------------------------------
+//{
+//  float t = a * a;
+//  return t / (b * b + t);
+//}
 
 //const int numOfLights = 0;
 ////-----------------------------------------------------------------------

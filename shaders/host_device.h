@@ -72,11 +72,13 @@ END_ENUM();
 
 // Scene Data - Set 2
 START_ENUM(SceneBindings)
-  eCamera    = 0, 
-  eMaterials = 1, 
-  eInstData  = 2, 
-  eLights    = 3,            
-  eTextures  = 4  // must be last elem            
+	eCamera = 0,
+	eMaterials = 1,
+	eInstData = 2,
+	ePuncLights = 3,
+	eTrigLights = 4,
+	eLightBufInfo = 5,
+	eTextures = 6  // must be last elem               
 END_ENUM();
 
 // Environment - Set 3
@@ -114,12 +116,15 @@ START_ENUM(DebugMode)
   eRadiance  = 9,   //
   eWeight    = 10,  //
   eRayDir    = 11,  //
-  eHeatmap   = 12   //
+  eHeatmap   = 12,   //
+  eDepth	 = 13
 END_ENUM();
 // clang-format on
 
 
 // Camera of the scene
+#define CAMERA_NEAR 0.001f
+#define CAMERA_FAR 1000.0f
 struct SceneCamera
 {
   mat4  viewInverse;
@@ -202,13 +207,21 @@ struct RtxState
   int   maxDepth;               // How deep the path is
   int   maxSamples;             // How many samples to do per render
   float fireflyClampThreshold;  // to cut fireflies
+
   float hdrMultiplier;          // To brightening the scene
   int   debugging_mode;         // See DebugMode
   int   pbrMode;                // 0-Disney, 1-Gltf
   int   _pad0;                  // vec2 need alignment
+
   ivec2 size;                   // rendering size
   int   minHeatmap;             // Debug mode - heat map
   int   maxHeatmap;
+
+  // Light Info
+  float envMapLuminIntegInv;
+  float lightLuminIntegInv;
+  float environmentProb; // Used in direct light importance sampling
+  int MIS;			   // 0 - off, 1 - on
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -296,23 +309,32 @@ struct SunAndSky
   int   in_use;
 };
 
+// ReSTIR Structure
 struct Reservoir
 {
     vec3 vPos;
-    vec3 vNorm;
-    vec3 sPos;
-    vec3 sNorm;
-    vec3 radiance;
+	uint M;
 
-    uint M;
-    float weightF; //the weight use for compute final illuminance W = Weight / (Mount * pdf)
-    uint age; //age the sample  > maxSampleAge will be discard
+    vec3 vNorm;
+	float weightF; //the weight use for compute final illuminance W = Weight / (Mount * pdf)
+
+    vec3 sPos;
+	uint age; //age the sample  > maxSampleAge will be discard
+
+    vec3 sNorm;
+	int pad1;
+
+    vec3 radiance;
+	int pad2;
 };
 
 struct FinalSample
 {
     vec3 dir;
+	int pad1;
+
     vec3 Li;
+	int pad2;
 };
 
 struct HashAppendData
@@ -321,6 +343,57 @@ struct HashAppendData
     uint reservoirIdx;
     uint cellIdx;
     uint inCellIdx;
+};
+
+// Light sampling data
+// acceleration structure for importance sampling - pre-computed
+// Alias method for importance sampling
+struct ImptSampData
+{
+	int alias;
+	float q;
+	float pdf;
+	float aliasPdf;
+};
+
+struct LightBufInfo
+{
+    uint puncLightSize;
+    uint trigLightSize;
+    float trigSampProb;
+    int pad;
+};
+
+struct PuncLight // point, spot, or directional light.
+{
+	int type;
+	vec3 direction;
+
+	float intensity;
+	vec3 color;
+
+	vec3 position;
+	float range;
+
+	float outerConeCos;
+	float innerConeCos;
+	vec2 padding;
+
+	ImptSampData impSamp;
+};
+
+struct TrigLight
+{ // triangles of emissive meshes
+	uint matIndex;
+	uint transformIndex;
+	vec3 v0;
+	vec3 v1;
+	vec3 v2;
+	vec2 uv0;
+	vec2 uv1;
+	vec2 uv2;
+	ImptSampData impSamp;
+	vec3 pad;
 };
 
 #endif  // COMMON_HOST_DEVICE

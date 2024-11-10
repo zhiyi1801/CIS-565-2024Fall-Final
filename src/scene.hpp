@@ -32,18 +32,23 @@
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 #include "queue.hpp"
+#include "nvmath/nvmath.h"
 
 
 class Scene
 {
 public:
-  enum EBuffer
-  {
-    eCameraMat,
-    eMaterial,
-    eInstData,
-    eLights,
-  };
+	enum EBuffer
+	{
+		eCameraMat,
+		eMaterial,
+		eInstData,
+		ePuncLights,
+		eTrigLights,
+		// eTrigLightTransforms,
+		eLightBufInfo,
+		//eGbuffer
+	};
 
 
   enum EBuffers
@@ -61,7 +66,9 @@ public:
   void createVertexBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf);
   void setCameraFromScene(const std::string& filename, const nvh::GltfScene& gltf);
   bool loadGltfScene(const std::string& filename, tinygltf::Model& tmodel);
-  void createLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf);
+  void createPuncLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf);
+  void createTrigLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf, const tinygltf::Model& gltfModel);
+  // void createLightBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf);
   void createMaterialBuffer(VkCommandBuffer cmdBuf, const nvh::GltfScene& gltf);
   void destroy();
   void updateCamera(const VkCommandBuffer& cmdBuf, float aspectRatio);
@@ -74,6 +81,9 @@ public:
   const std::vector<nvvk::Buffer>& getBuffers(EBuffers b) { return m_buffers[b]; }
   const std::string&               getSceneName() const { return m_sceneName; }
   SceneCamera&                     getCamera() { return m_camera; }
+
+  float m_puncLightWeight{ 0.f };
+  float m_trigLightWeight{ 0.f };
 
 private:
   void createTextureImages(VkCommandBuffer cmdBuf, tinygltf::Model& gltfModel);
@@ -92,7 +102,7 @@ private:
   nvvk::Queue              m_queue;
 
   // Resources
-  std::array<nvvk::Buffer, 5>                            m_buffer;           // For single buffer
+  std::array<nvvk::Buffer, 6>                            m_buffer;           // For single buffer
   std::array<std::vector<nvvk::Buffer>, 2>               m_buffers;          // For array of buffers (vertex/index)
   std::vector<nvvk::Texture>                             m_textures;         // vector of all textures of the scene
   std::vector<std::pair<nvvk::Image, VkImageCreateInfo>> m_images;           // vector of all images of the scene
@@ -101,4 +111,9 @@ private:
   VkDescriptorPool      m_descPool{VK_NULL_HANDLE};
   VkDescriptorSetLayout m_descSetLayout{VK_NULL_HANDLE};
   VkDescriptorSet       m_descSet{VK_NULL_HANDLE};
+
+  LightBufInfo m_lightBufInfo;
+  float createPuncLightImptSampAccel(std::vector<PuncLight>& puncLights, const nvh::GltfScene& gltf);
+  float createTrigLightImptSampAccel(std::vector<TrigLight>& trigLights, const nvh::GltfScene& gltf, const tinygltf::Model& gltfModel);
+  float computeTrigIntensity(const TrigLight& trig, const nvh::GltfMaterial& mtl, const tinygltf::Model& gltfModel);
 };

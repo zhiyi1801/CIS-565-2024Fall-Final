@@ -125,7 +125,15 @@ bool SampleGUI::guiRayTracing()
   bool  changed{false};
   auto& rtxState(_se->m_rtxState);
 
-  changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 1, 10);
+  changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 0, 10);
+
+  GuiH::Group<bool>("Indirect Light", true, [&] {
+      bool mis = rtxState.MIS;
+      changed |= GuiH::Checkbox("MIS", "", &mis);
+      rtxState.MIS = mis;
+      return changed;
+  });
+
   changed |= GuiH::Slider("Samples Per Frame", "", &rtxState.maxSamples, nullptr, Normal, 1, 10);
   changed |= GuiH::Slider("Max Iteration ", "", &_se->m_maxFrames, nullptr, Normal, 1, 1000);
   changed |= GuiH::Slider("De-scaling ",
@@ -135,6 +143,7 @@ bool SampleGUI::guiRayTracing()
                           &_se->m_descalingLevel, nullptr, Normal, 1, 8);
 
   changed |= GuiH::Selection("Pbr Mode", "PBR material model", &rtxState.pbrMode, nullptr, Normal, {"Disney", "Gltf"});
+
 
   static bool bAnyHit = true;
   if(_se->m_rndMethod == SampleExample::RndMethod::eRtxPipeline)

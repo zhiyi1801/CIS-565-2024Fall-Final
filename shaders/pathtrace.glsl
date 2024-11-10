@@ -24,7 +24,7 @@
 // * `DirectLight()` is the contribution at the hit, if the shadow ray is not hitting anything.
 
 #define ENVMAP 1
-#define RR 1        // Using russian roulette
+#define RR 0        // Using russian roulette
 #define RR_DEPTH 0  // Minimum depth
 
 
@@ -122,7 +122,7 @@ VisibilityContribution DirectLight(in Ray r, in State state)
 
     // randomly select one of the lights
     int   light_index = int(min(rand(prd.seed) * sceneCamera.nbLights, sceneCamera.nbLights));
-    Light light       = lights[light_index];
+    PuncLight light       = puncLights[light_index];
 
     vec3  pointToLight     = -light.direction;
     float rangeAttenuation = 1.0;

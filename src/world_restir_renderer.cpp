@@ -16,6 +16,7 @@
 #include "autogen/pathtrace.rmiss.h"
 #include "autogen/pathtraceShadow.rmiss.h"
 #include "autogen/ReflectTypes.comp.h"
+#include "autogen/pathtrace_metallicworkflow.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -63,7 +64,7 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 	createInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 	createInfo.stage.pName = "main";
 
-	m_pipeline = createComputePipeline(m_device, createInfo, pathtrace_comp, sizeof(pathtrace_comp));
+	m_pipeline = createComputePipeline(m_device, createInfo, pathtrace_metallicworkflow_comp, sizeof(pathtrace_metallicworkflow_comp));
 	m_debug.setObjectName(m_pipeline, "Test");
 
 	timer.print();
@@ -123,7 +124,6 @@ void WorldRestirRenderer::destroy()
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = VK_NULL_HANDLE;
 	m_pipeline = VK_NULL_HANDLE;
-
 }
 
 void WorldRestirRenderer::createBuffer()
@@ -269,6 +269,8 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 		static_cast<uint32_t>(descSets.size()), descSets.data(), 0, nullptr);
 
 	// Sending the push constant information
+	// TODO
+	m_state.environmentProb = 1.0;
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
 
 	// Dispatching the shader
