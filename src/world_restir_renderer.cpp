@@ -17,6 +17,7 @@
 #include "autogen/pathtraceShadow.rmiss.h"
 #include "autogen/ReflectTypes.comp.h"
 #include "autogen/pathtrace_metallicworkflow.comp.h"
+#include "autogen/gbufferPass.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -66,6 +67,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 
 	m_pipeline = createComputePipeline(m_device, createInfo, pathtrace_metallicworkflow_comp, sizeof(pathtrace_metallicworkflow_comp));
 	m_debug.setObjectName(m_pipeline, "Test");
+
+	m_GbufferPipeline = createComputePipeline(m_device, createInfo, gbufferPass_comp, sizeof(gbufferPass_comp));
+	m_debug.setObjectName(m_GbufferPipeline, "Gbuffer");
 
 	timer.print();
 }
@@ -120,10 +124,12 @@ void WorldRestirRenderer::destroy()
 		pipeline = VK_NULL_HANDLE;
 		};
 	destroyPipeline(m_pipeline);
+	destroyPipeline(m_GbufferPipeline);
 
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = VK_NULL_HANDLE;
 	m_pipeline = VK_NULL_HANDLE;
+	m_GbufferPipeline = VK_NULL_HANDLE;
 }
 
 void WorldRestirRenderer::createBuffer()
@@ -264,7 +270,6 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 {
 	descSets.push_back(m_descSet[(frames + 1) % 2]);
 	// Preparing for the compute shader
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
 	vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineLayout, 0,
 		static_cast<uint32_t>(descSets.size()), descSets.data(), 0, nullptr);
 
@@ -274,6 +279,10 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
 
 	// Dispatching the shader
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 }
 

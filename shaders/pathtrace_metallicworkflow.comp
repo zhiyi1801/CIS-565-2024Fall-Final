@@ -96,6 +96,10 @@ void main()
     // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1);
   }
 
+  // uvec4 gInfo = imageLoad(lastGbuffer, imageCoords);
+  // vec3 normal = decompress_unit_vec(gInfo.y);
+  // vec3 albedo = unpackUnorm4x8(gInfo.w).xyz;
+
   // Saving pixel color
   if(rtxState.frame > 0)
   {

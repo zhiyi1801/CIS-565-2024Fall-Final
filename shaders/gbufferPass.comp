@@ -50,15 +50,26 @@ layout(push_constant) uniform _RtxState
 
 PtPayload        prd;
 ShadowHitPayload shadow_payload;
+ivec2 imageCoords;
 
 #include "layouts.glsl"
 #include "random.glsl"
 #include "common.glsl"
 #include "traceray_rq.glsl"
 
-#include "pathtrace.glsl"
+#include "pathtrace_metallicworkflow.glsl"
 
 #define FIREFLIES 1
+
+uvec4 encodeGeometryInfo(State state, float depth) {
+    uvec4 gInfo;
+    gInfo.x = floatBitsToUint(depth);
+    gInfo.y = compress_unit_vec(state.normal);
+    gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior-1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
+    gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
+    gInfo.w += hash8bit(state.matID);
+    return gInfo;
+}
 
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
@@ -80,6 +91,22 @@ ivec2 SampleSizzled()
 }
 #endif
 
+// Generate Gbuffer
+void traceGbuffer(Ray r)
+{
+    int index = imageCoords.y * rtxState.size.x + imageCoords.x;
+    ClosestHit(r);
+    if (prd.hitT >= INFINITY) {
+        imageStore(thisGbuffer, imageCoords, uvec4(floatBitsToUint(INFINITY), 0, 0, InvalidMatId));
+        return;
+    }
+    State state = GetState(prd, r.direction);
+    GetMaterialsAndTextures(state, r);
+
+    uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
+    imageStore(thisGbuffer, imageCoords, gInfo);
+}
+
 //
 //--------------------------------------------------------------------------------------------------
 //
@@ -89,7 +116,7 @@ void main()
   uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
   ivec2 imageRes    = rtxState.size;
-  ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+  imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
 
   // Initialize the seed for the random number only once once
   // uvec2 s    = pcg2d(imageCoords * int(clockARB()));
@@ -97,40 +124,6 @@ void main()
   prd.seed = tea(rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.frame * rtxState.maxSamples);
   //prd.seed = initRandom(uvec2(imageRes), gl_GlobalInvocationID.xy, rtxState.frame);
 
-  // Sampling the pixel
-  vec3 pixelColor = vec3(0);
-  for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
-  {
-    pixelColor += samplePixel(imageCoords, ivec2(imageRes));
-  }
-  pixelColor /= rtxState.maxSamples;
-
-  // Debug - Heatmap
-  if(rtxState.debugging_mode == eHeatmap)
-  {
-    uint64_t end  = clockRealtimeEXT();
-    float    low  = rtxState.minHeatmap;
-    float    high = rtxState.maxHeatmap;
-    float    val  = clamp((float(end - start) - low) / (high - low), 0.0, 1.0);
-    pixelColor    = temperature(val);
-
-    // Wrap & SM visualization
-    // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1);
-  }
-
-  // Saving pixel color
-  if(rtxState.frame > 0)
-  {
-    // Do accumulation over time
-    vec3 old_color  = imageLoad(resultImage, imageCoords).xyz;
-    vec3 new_result = mix(old_color, pixelColor, 1.0f / float(rtxState.frame + 1));
-    imageStore(resultImage, imageCoords, vec4(new_result, 1.f));
-    imageStore(testImage, imageCoords, vec4(new_result, 1.f));
-  }
-  else
-  {
-    // First frame, replace the value in the buffer
-    imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
-    imageStore(testImage, imageCoords, vec4(pixelColor, 1.f));
-  }
+  Ray ray = raySpawn(imageCoords, ivec2(imageRes));
+  traceGbuffer(ray);
 }

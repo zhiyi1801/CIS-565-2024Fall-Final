@@ -59,7 +59,7 @@ int main(int argc, char** argv)
 	uint bbb = sizeof(LightBufInfo);
 
   InputParser parser(argc, argv);
-  std::string sceneFile   = parser.getString("-f", "subway/scene.gltf");
+  std::string sceneFile   = parser.getString("-f", "robot_toon/robot-toon.gltf");
   std::string hdrFilename = parser.getString("-e", "daytime.hdr");
 
   // Setup GLFW window

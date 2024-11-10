@@ -123,6 +123,7 @@ struct State
   float area;
 };
 
+const uint InvalidMatId = 0xff000000u;
 
 //-----------------------------------------------------------------------
 struct BsdfSampleRec

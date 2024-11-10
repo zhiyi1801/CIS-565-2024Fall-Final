@@ -428,7 +428,7 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
   std::vector<VkDescriptorSet> descSets{ m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet };
-  m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler, descSets);
+  m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler, descSets, m_rtxState.frame);
 
   //m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
   //                            {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
