@@ -100,6 +100,8 @@ eCell = 6,
 eIndex = 7,
 eCheckSum = 8,
 eCellCounter = 9,
+eInitialSamples = 10,
+eReconnection = 11,
 eTestImage = 16
 END_ENUM();
 
@@ -323,19 +325,19 @@ struct Reservoir
 	uint age; //age the sample  > maxSampleAge will be discard
 
     vec3 sNorm;
-	int pad1;
+	int padding1;
 
     vec3 radiance;
-	int pad2;
+	int padding2;
 };
 
 struct FinalSample
 {
     vec3 dir;
-	int pad1;
+	int padding1;
 
     vec3 Li;
-	int pad2;
+	int padding2;
 };
 
 struct HashAppendData
@@ -344,6 +346,44 @@ struct HashAppendData
     uint reservoirIdx;
     uint cellIdx;
     uint inCellIdx;
+};
+
+struct InitialSample
+{
+	vec3 preRcVertexPos;
+	float pdf;
+
+	vec3 preRcVertexNorm;
+	int padding1;
+
+	vec3 rcVertexPos;
+	int padding2;
+
+	vec3 rcVertexNorm;
+	int padding3;
+
+	vec3 rcVertexLo;
+	int padding4;
+};
+
+struct HitInfo
+{
+	static const uint kDataSize = 4;
+	static const uint kTypeBits = 2;
+
+	static const uint kTypeOffset = 32u - kTypeBits;
+	static const uint kData0Mask = (1u << kTypeOffset) - 1u;
+};
+
+struct ReconnectionData
+{
+	HitInfo rcPrevHit;
+
+	vec3 rcPrevWo;
+	int padding1;
+
+	vec3 pathThroughput;
+	int padding2;
 };
 
 // Light sampling data
