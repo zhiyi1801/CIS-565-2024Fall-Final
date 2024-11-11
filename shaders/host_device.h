@@ -34,6 +34,7 @@ using ivec2 = glm::ivec2;
 using vec2  = glm::vec2;
 using vec3  = glm::vec3;
 using vec4  = glm::vec4;
+using uvec4 = glm::uvec4;
 using mat4  = glm::mat4;
 using uint  = unsigned int;
 #endif
@@ -214,7 +215,7 @@ struct RtxState
   float hdrMultiplier;          // To brightening the scene
   int   debugging_mode;         // See DebugMode
   int   pbrMode;                // 0-Disney, 1-Gltf
-  int   _pad0;                  // vec2 need alignment
+  uint   maxBounces;                  // Max restir bounces
 
   ivec2 size;                   // rendering size
   int   minHeatmap;             // Debug mode - heat map
@@ -366,24 +367,42 @@ struct InitialSample
 	int padding4;
 };
 
-struct HitInfo
-{
-	static const uint kDataSize = 4;
-	static const uint kTypeBits = 2;
-
-	static const uint kTypeOffset = 32u - kTypeBits;
-	static const uint kData0Mask = (1u << kTypeOffset) - 1u;
-};
-
 struct ReconnectionData
 {
-	HitInfo rcPrevHit;
+	uvec4 preRcVertexHitInfo;
 
-	vec3 rcPrevWo;
+	vec3 pathPreThp;   
+	uint pathLength;
+
+	vec3 pathPreRadiance;
+	uint padding1;
+
+	vec3 preRcVertexWo;
+	uint padding2;
+};
+
+struct PathPayLoad
+{
+	vec3 prefixThp;
+	uint currentVertexIndex; //vertexIndex along the path, intialized value is 1
+
+	vec3 thp;
+	uint rcVertexLength;
+
+	vec3 radiance;
+	uint isLastVertexClassifiedAsRough;
+
+	vec3 prefixPathRadiance;
+	float pdf;
+
+	vec3 rcVertexRadiance;
 	int padding1;
 
-	vec3 pathThroughput;
+	vec3 rcVertexPos;
 	int padding2;
+
+	vec3 rcVertexNorm;
+	int padding3;
 };
 
 // Light sampling data

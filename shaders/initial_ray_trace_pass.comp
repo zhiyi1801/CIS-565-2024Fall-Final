@@ -34,7 +34,7 @@ ShadowHitPayload shadow_payload;
 #include "common.glsl"
 #include "traceray_rq.glsl"
 
-#include "pathtrace_metallicworkflow.glsl"
+#include "pathtrace_initial.glsl"
 
 #define FIREFLIES 1
 
@@ -79,7 +79,7 @@ void main()
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
-    pixelColor += samplePixel_MetallicWorkflow(imageCoords, ivec2(imageRes));
+    pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes));
   }
   pixelColor /= rtxState.maxSamples;
 
