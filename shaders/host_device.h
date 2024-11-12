@@ -456,4 +456,30 @@ struct TrigLight
 	vec3 pad;
 };
 
+// Couldn't Combine with GIParameter
+//struct GIParameter
+//{
+//	uint2 frameDim = { };
+//	uint frameCount = 0u;
+//	uint instanceID = 0u;
+//
+//	float3 sceneBBMin = { };
+//	float fov = 0.f;
+//
+//	float4 _pad = { };
+//	float minCellSize = 0.0f;
+//};
+
+struct GIParameter
+{
+	vec2 frameDim;
+	uint frameCount = 0;
+	uint instanceID = 0;
+
+	vec3 sceneBBMin;
+	float fov = 0.f;
+
+	vec4 _pad;
+	float minCellSize = 0.0f;
+};
 #endif  // COMMON_HOST_DEVICE
