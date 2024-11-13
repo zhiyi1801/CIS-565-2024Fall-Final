@@ -414,6 +414,12 @@ struct PathPayLoad
 
 	vec3 rcVertexNorm;
 	int padding3;
+
+	vec3 rcEnvDir;
+	int rcEnv;
+
+	vec3 cacheBsdfCosWeight;
+	int padding4;
 };
 
 // Light sampling data
@@ -484,13 +490,13 @@ struct TrigLight
 struct GIParameter
 {
 	vec2 frameDim;
-	uint frameCount = 0;
-	uint instanceID = 0;
+	uint frameCount;
+	uint instanceID;
 
 	vec3 sceneBBMin;
-	float fov = 0.f;
+	float fov;
 
 	vec4 _pad;
-	float minCellSize = 0.0f;
+	float minCellSize;
 };
 #endif  // COMMON_HOST_DEVICE
