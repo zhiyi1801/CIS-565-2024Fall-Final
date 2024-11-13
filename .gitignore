@@ -2,3 +2,4 @@
 /build/*
 build/*
 build
+src/p4.py
