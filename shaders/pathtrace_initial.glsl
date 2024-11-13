@@ -426,23 +426,85 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
         }
 
         vec3 wo = -r.direction;
-        // MIS 
+
+        // Do MIS 
+
+        // Direct light radiance and direction from sample point to light sample
         vec3 Li, wi;
+
+		// Sample direct light
         float lightPdf = SampleDirectLight(state, Li, wi);
+
+        // If the light is visible, do MIS
         if (!IsPdfInvalid(lightPdf) /*&& lastMaterial.transmission == 0*/) {
+
+            // Get material BSDF and pdf according to w_out, w_in and  face normal
             float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
-            float weight = powerHeuristic(lightPdf, BSDFPdf);
+
+            // Evaluate MIS weight
+            float MIS_weight = powerHeuristic(lightPdf, BSDFPdf);
+
+			// Accumulate path radiance
+            pathState.radiance += (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
+
+			// update reconnect radiance/prefix point radiance
+            if (pathState.currentVertexIndex < pathState.rcVertexLength)
+            {
+                vec3 thp = pathState.prefixThp;
+                pathState.prefixPathRadiance += thp * Li * MIS_weight;
+            }
+            else
+            {
+                vec3 thp = pathState.thp;
+                pathState.rcVertexRadiance += thp * Li * MIS_weight;
+            }
+
             radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
-                throughput / lightPdf * weight;
+                throughput / lightPdf * MIS_weight;
         }
 
+        // Sample next ray according to BSDF
         sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
 
+        // Vlidate sample
         if (IsPdfInvalid(samplePdf)) {
             break;
         }
 
-        throughput *= sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
+        // Get roughness
+        float matRoughness = state.mat.roughness;
+
+        // TODO
+        // Set roughness threshold, now fixed, should be a variable 
+        float kRoughnessThreshold = 0.2f;
+
+        // Flag shows if rough enough to reconnect
+        bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
+
+		// If the vertex is classified as rough and do not have a reconnect vertex
+        if (pathState.currentVertexIndex < pathState.rcVertexLength && vertexClassifiedAsRough)
+        {
+			// Current vertex is prev vertex and next vertex is the reconnect vertex
+            pathState.rcVertexLength = pathState.currentVertexIndex + 1;
+        }
+
+		// get the bsdf * cos(theta) / pdf
+        vec3 bsdfCosWeight = sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
+
+		// If the vertex is in the prefix path
+        if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
+        {
+			// Update prefix throughput
+			pathState.prefixThp *= bsdfCosWeight;
+        }
+		// If the vertex is in the reconnect path
+        else
+        {
+            // Accumulate reconnect throughput
+            pathState.thp *= bsdfCosWeight;
+        }
+
+        throughput *= bsdfCosWeight;
 
         r.origin = OffsetRay(state.position, state.ffnormal);
         r.direction = sampleWi;

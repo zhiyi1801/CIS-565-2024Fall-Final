@@ -332,6 +332,7 @@ struct Reservoir
 	int padding2;
 };
 
+// Final sample structure
 struct FinalSample
 {
     vec3 dir;
@@ -341,6 +342,7 @@ struct FinalSample
 	int padding2;
 };
 
+// Hash grid structure
 struct HashAppendData
 {
     uint isValid;
@@ -349,8 +351,12 @@ struct HashAppendData
     uint inCellIdx;
 };
 
+// Sample structure of first ray trace pass
 struct InitialSample
 {
+	// prev vertex is the vertex before the reconnect vertex, should be of high roughness so that the bsdf is meaningful for every direction
+
+	// prev vertex world position
 	vec3 preRcVertexPos;
 	float pdf;
 
@@ -363,20 +369,25 @@ struct InitialSample
 	vec3 rcVertexNorm;
 	int padding3;
 
+	// Accumulate radiance from the reconnect vertex to the final vertex(could be a light or just terminate)
 	vec3 rcVertexLo;
 	int padding4;
 };
 
+// prev vertex is the vertex before the reconnect vertex, should be of high roughness so that the bsdf is meaningful for every direction
 struct ReconnectionData
 {
 	uvec4 preRcVertexHitInfo;
 
+	// Throughput from the camera to the prev vertex
 	vec3 pathPreThp;   
 	uint pathLength;
 
+	// Accumulate radiance from the camera to the prev vertex
 	vec3 pathPreRadiance;
 	uint padding1;
 
+	// 
 	vec3 preRcVertexWo;
 	uint padding2;
 };
