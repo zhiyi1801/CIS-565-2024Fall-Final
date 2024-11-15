@@ -80,7 +80,11 @@ void main()
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
-    pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
+    // pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
+
+    // For debug
+    samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
+    pixelColor += unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.w).rgb;
   }
   pixelColor /= rtxState.maxSamples;
 

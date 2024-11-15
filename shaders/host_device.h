@@ -436,7 +436,7 @@ struct PathPayLoad
 	int padding6;
 
 	vec3 preRcVertexWo;
-	int padding7;
+	int validPath;
 };
 
 // Light sampling data

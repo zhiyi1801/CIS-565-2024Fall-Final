@@ -525,7 +525,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
             // TODO
             // Set roughness threshold, now fixed, should be a variable 
-            float kRoughnessThreshold = -10000.0f;
+            float kRoughnessThreshold = 0.f;
 
             // Flag shows if rough enough to reconnect
             bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
@@ -536,6 +536,8 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             // If the vertex is classified as rough and do not have a reconnect vertex
             if (pathState.currentVertexIndex < pathState.rcVertexLength && vertexClassifiedAsRough)
             {
+                pathState.validPath = 1;
+
                 // Current vertex is prev vertex and next vertex is the reconnect vertex
                 pathState.rcVertexLength = pathState.currentVertexIndex + 1;
 
@@ -549,7 +551,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 pathState.preRcVertexNorm = state.normal;
             }
 
-            // get the bsdf * cos(theta) / pdf
+            // evaluate the bsdf * cos(theta) / pdf
             vec3 bsdfCosWeight = sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
 
             // If the vertex is in the prefix path
@@ -623,6 +625,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
 
     PathPayLoad pathState;
+    pathState.preRcVertexHitInfo = uvec4(0);
     pathState.currentVertexIndex = 0;
     pathState.thp = vec3(1.0f, 1.0f, 1.0f);
     pathState.prefixThp = vec3(1.0f, 1.0f, 1.0f);
@@ -636,6 +639,8 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.rcVertexNorm = vec3(0.0f);
     pathState.preRcVertexPos = vec3(0.0f);
     pathState.preRcVertexNorm = vec3(0.0f);
+
+    pathState.validPath = 0;
 
     // rcVertexLength is the number of vertices in the reconnect path, should be initialized to the max depth + 1
     pathState.rcVertexLength = rtxState.maxDepth + 1;
@@ -677,6 +682,16 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 	{
 		pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
 	}
+
+    //if (pathState.validPath > 0)
+    //{
+    //    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
+    //}
+    //else
+    //{
+    //    return vec3(0.0f, 0.0f, 0.0f);
+    //}
+    // 
 
     //return radiance;
     return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
