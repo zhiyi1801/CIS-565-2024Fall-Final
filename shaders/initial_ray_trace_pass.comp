@@ -68,6 +68,7 @@ void main()
 
   ivec2 imageRes    = rtxState.size;
   ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+  uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
   // Initialize the seed for the random number only once once
   // uvec2 s    = pcg2d(imageCoords * int(clockARB()));
@@ -79,7 +80,7 @@ void main()
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
-    pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes));
+    pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
   }
   pixelColor /= rtxState.maxSamples;
 

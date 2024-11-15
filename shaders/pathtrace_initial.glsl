@@ -7,6 +7,7 @@
 #include "env_sampling.glsl"
 #include "shade_state.glsl"
 #include "punctual.glsl"
+#include "HashBuildStructure.glsl"
 
 float dummyPdf;
 
@@ -295,9 +296,20 @@ vec3 DebugInfo(in State state) {
     return vec3(1000, 0, 0);
 }
 
-//-----------------------------------------------------------------------
-//-----------------------------------------------------------------------
+// Pack the hit info to a uvec4
+// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
+uvec4 encodeGeometryInfo(State state, float depth) {
+    uvec4 gInfo;
+    gInfo.x = floatBitsToUint(depth);
+    gInfo.y = compress_unit_vec(state.normal);
+    gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior - 1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
+    gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
+    gInfo.w += hash8bit(state.matID);
+    return gInfo;
+}
 
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
 vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 {
     vec3 radiance = vec3(0.0);
@@ -339,6 +351,18 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             // Filling material structures
             GetMaterialsAndTextures(state, r);
         }
+
+        // Transfer normal to a uint
+        uint normprint = BinaryNorm(state.ffnormal);
+
+        // Hash the position and normal
+        uint upx = uint(state.position.x);
+		uint upy = uint(state.position.y);
+		uint upz = uint(state.position.z);
+        uint cellIndex = pcg32(normprint + pcg32(pcg32(upx + pcg32(upy + pcg32(upz))))) % 100000;
+
+		// for debugging
+        //return vec3(float(cellIndex));
 
         // Flag shows if it is the reconnect vertex
         bool connectabele = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex == pathState.rcVertexLength);
@@ -501,7 +525,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
             // TODO
             // Set roughness threshold, now fixed, should be a variable 
-            float kRoughnessThreshold = 0.2f;
+            float kRoughnessThreshold = -10000.0f;
 
             // Flag shows if rough enough to reconnect
             bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
@@ -514,6 +538,15 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             {
                 // Current vertex is prev vertex and next vertex is the reconnect vertex
                 pathState.rcVertexLength = pathState.currentVertexIndex + 1;
+
+                // Pack the hit info of the prev vertex
+                pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
+
+                // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
+                pathState.preRcVertexWo = wo;
+
+                // Record the face normal of the prev vertex
+                pathState.preRcVertexNorm = state.normal;
             }
 
             // get the bsdf * cos(theta) / pdf
@@ -550,10 +583,18 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
     return radiance;
 }
 
+vec3 randomColor(vec3 _in) {
+    // Generate a pseudo-random color based on the input vector
+    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
+    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
+
+    return vec3(r, g, b);
+}
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
-vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage)
+vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 {
     vec3 pixelColor = vec3(0);
 
@@ -591,10 +632,29 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage)
     pathState.rcEnv = 0;
     pathState.cacheBsdfCosWeight = vec3(0);
 
+    pathState.rcVertexPos = vec3(0.0f);
+    pathState.rcVertexNorm = vec3(0.0f);
+    pathState.preRcVertexPos = vec3(0.0f);
+    pathState.preRcVertexNorm = vec3(0.0f);
+
     // rcVertexLength is the number of vertices in the reconnect path, should be initialized to the max depth + 1
     pathState.rcVertexLength = rtxState.maxDepth + 1;
 
     vec3 radiance = PathTrace_Initial(ray, pathState);
+
+    // Assign reconnect data
+	reconnectionDataBuffer[idx].pathPreThp = pathState.prefixThp;
+	reconnectionDataBuffer[idx].pathLength = pathState.rcVertexLength;
+	reconnectionDataBuffer[idx].pathPreRadiance = pathState.prefixPathRadiance;
+    reconnectionDataBuffer[idx].preRcVertexWo = pathState.preRcVertexWo;
+    reconnectionDataBuffer[idx].preRcVertexHitInfo = pathState.preRcVertexHitInfo;
+
+    // Assign initialSample
+	initialSampleBuffer[idx].rcVertexLo = pathState.rcVertexRadiance;
+    initialSampleBuffer[idx].rcVertexPos = pathState.rcVertexPos;
+    initialSampleBuffer[idx].rcVertexNorm = pathState.rcVertexNorm;
+    initialSampleBuffer[idx].preRcVertexPos = pathState.preRcVertexPos;
+    initialSampleBuffer[idx].preRcVertexNorm = pathState.preRcVertexNorm;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
@@ -604,20 +664,28 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage)
         radiance *= rtxState.fireflyClampThreshold / lum;
     }
 
+    // Removing fireflies
     lum = dot(pathState.prefixPathRadiance, vec3(0.212671f, 0.715160f, 0.072169f));
 	if (lum > rtxState.fireflyClampThreshold)
 	{
 		pathState.prefixPathRadiance *= rtxState.fireflyClampThreshold / lum;
 	}
 
+    // Removing fireflies
 	lum = dot(pathState.rcVertexRadiance, vec3(0.212671f, 0.715160f, 0.072169f));
 	if (lum > rtxState.fireflyClampThreshold)
 	{
 		pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
 	}
 
+    //return radiance;
+    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
-    //return pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
-    //return pathState.prefixPathRadiance;
+    // return pathState.rcVertexRadiance;
+    // return pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
+    return pathState.prefixPathRadiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
+
+    //vec3 randomCol = randomColor(radiance);
+    //return randomCol;
 }
