@@ -536,7 +536,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             // If the vertex is classified as rough and do not have a reconnect vertex
             if (pathState.currentVertexIndex < pathState.rcVertexLength && vertexClassifiedAsRough)
             {
-                pathState.validPath = 1;
+                pathState.validRcPath = 1;
 
                 // Current vertex is prev vertex and next vertex is the reconnect vertex
                 pathState.rcVertexLength = pathState.currentVertexIndex + 1;
@@ -640,7 +640,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.preRcVertexPos = vec3(0.0f);
     pathState.preRcVertexNorm = vec3(0.0f);
 
-    pathState.validPath = 0;
+    pathState.validRcPath = 0;
 
     // rcVertexLength is the number of vertices in the reconnect path, should be initialized to the max depth + 1
     pathState.rcVertexLength = rtxState.maxDepth + 1;
@@ -683,7 +683,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 		pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
 	}
 
-    //if (pathState.validPath > 0)
+    //if (pathState.validRcPath > 0)
     //{
     //    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     //}
@@ -693,12 +693,12 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     //}
     // 
 
-    //return radiance;
-    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
+    // return radiance;
+    // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
     // return pathState.rcVertexRadiance;
     // return pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
-    return pathState.prefixPathRadiance;
+    // return pathState.prefixPathRadiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
 
     //vec3 randomCol = randomColor(radiance);

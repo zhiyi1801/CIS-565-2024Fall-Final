@@ -80,11 +80,22 @@ void main()
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
-    // pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
+    pixelColor += samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
 
     // For debug
-    samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
-    pixelColor += unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.w).rgb;
+    // // Albedo
+    // samplePixel_Initial(imageCoords, ivec2(imageRes), idx);
+    // vec3 albedo = unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.w).rgb;
+
+    // // Normal
+    // vec3 normal = decompress_unit_vec(reconnectionDataBuffer[idx].preRcVertexHitInfo.y);
+    // // normal = decompress_unit_vec(imageLoad(thisGbuffer, imageCoords).y);
+    // normal = (normal + vec3(1.0f)) / 2.0f;
+
+    // // metallic, roughness
+    // vec2 metallicRoughness = unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.z).xy;
+
+    // pixelColor += metallicRoughness.y;
   }
   pixelColor /= rtxState.maxSamples;
 
