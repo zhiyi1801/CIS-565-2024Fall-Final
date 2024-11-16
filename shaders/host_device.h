@@ -226,6 +226,13 @@ struct RtxState
   float lightLuminIntegInv;
   float environmentProb; // Used in direct light importance sampling
   int MIS;			   // 0 - off, 1 - on
+
+  // Info for ReStir
+  vec3 sceneBBMin;
+  float minCellSize;
+
+  vec3 sceneBBMax;
+  float padding1;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -513,7 +520,7 @@ struct GIParameter
 	vec3 sceneBBMin;
 	float fov;
 
-	vec4 _pad;
 	float minCellSize;
+	vec3 _pad;
 };
 #endif  // COMMON_HOST_DEVICE

@@ -95,6 +95,9 @@ void main()
     // // metallic, roughness
     // vec2 metallicRoughness = unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.z).xy;
 
+    // Length from the min bouding box
+
+
     // pixelColor += metallicRoughness.y;
   }
   pixelColor /= rtxState.maxSamples;
@@ -131,4 +134,8 @@ void main()
     imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
     imageStore(testImage, imageCoords, vec4(pixelColor, 1.f));
   }
+
+  // // Debug
+  // imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+  // imageStore(testImage, imageCoords, vec4(pixelColor, 1.f));
 }

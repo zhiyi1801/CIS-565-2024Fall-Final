@@ -337,6 +337,10 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
         if (prd.hitT != INFINITY)
         {
             sstate = GetShadeState(prd);
+
+            // Debug the world position
+            return sstate.position;
+
             state.position = sstate.position;
             state.normal = sstate.normal;
             state.tangent = sstate.tangent_u[0];
@@ -693,7 +697,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     //}
     // 
 
-    // return radiance;
+    return radiance;
     // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
     // return pathState.rcVertexRadiance;

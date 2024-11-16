@@ -96,6 +96,10 @@ void SampleExample::loadScene(const std::string& filename)
 
   m_rtxState.lightLuminIntegInv = 1.f / (m_scene.m_trigLightWeight + m_scene.m_puncLightWeight);
 
+  // Set the bounding box of the scene
+  m_rtxState.sceneBBMin = m_scene.getScene().m_dimensions.min;
+  m_rtxState.sceneBBMax = m_scene.getScene().m_dimensions.max;
+
   // The picker is the helper to return information from a ray hit under the mouse cursor
   m_picker.setTlas(m_accelStruct.getTlas());
   resetFrame();

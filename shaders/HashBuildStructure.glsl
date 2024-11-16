@@ -1,33 +1,21 @@
-// TODO: Rewrite RWByteAddressBuffer jenkinsHash pcg32
-
-
 #ifndef HASH_BUILD_STRUCTURE_GLSL
 #define HASH_BUILD_STRUCTURE_GLSL
 
-
 #include "host_device.h"
 
-//struct HashAppendData
-//{
-//    uint isValid;
-//    uint reservoirIdx;
-//    uint cellIdx;
-//    uint inCellIdx;
-//};
-//
-//struct GIParameter
-//{
-//    uint2 frameDim = { };
-//    uint frameCount = 0u;
-//    uint instanceID = 0u;
-//
-//    float3 sceneBBMin = { };
-//    float fov = 0.f;
-//
-//    float4 _pad = { };
-//    float minCellSize = 0.0f;   
-//};
+// second hash index
+uint jenkinsHash(uint a)
+{
+    a = (a + 0x7ed55d16) + (a << 12);
+    a = (a ^ 0xc761c23c) ^ (a >> 19);
+    a = (a + 0x165667b1) + (a << 5);
+    a = (a + 0xd3a2646c) ^ (a << 9);
+    a = (a + 0xfd7046c5) + (a << 3);
+    a = (a ^ 0xb55a4f09) ^ (a >> 16);
+    return a;
+}
 
+// Basic hash function
 uint pcg32(uint _input)
 {
     uint state = _input * 747796405u + 2891336453u;
@@ -35,6 +23,7 @@ uint pcg32(uint _input)
     return (word >> 22u) ^ word;
 }
 
+// quantize a normal to a uint
 uint BinaryNorm(vec3 norm)
 {
     uint a = norm.x > 0.f ? 1 : 0;
@@ -45,79 +34,18 @@ uint BinaryNorm(vec3 norm)
     //return biNorm.x << 4 | biNorm.y << 2 | biNorm.z;
 }
 
+// Get the cell size
+float CalculateCellSize(vec3 pos, vec3 cameraPos, GIParameter params)
+{
+    // https://wangningbei.github.io/2023/ReSTIR_files/paper_ReSTIRGI.pdf
+    // https://dl.acm.org/doi/10.1145/3478512.3488613
 
-//float CalculateCellSize(float3 pos, float3 cameraPos, GIParameter params)
-//{
-//    float cellSizeStep = length(pos - cameraPos) * tan(120 * params.fov * max(1.0 / params.frameDim.y, params.frameDim.y / float((params.frameDim.x * params.frameDim.x))));
-//    int logStep = floor(log2(cellSizeStep / params.minCellSize));
-//   
-//    return params.minCellSize * max(0.12f, exp2(logStep));
-//}
-//
-//int FindOrInsertCell(float3 pos, float3 norm, float cellSize, GIParameter params, RWByteAddressBuffer checkSumBuffer)
-//{
-//    uint3 p = uint3(floor((pos - params.sceneBBMin) / cellSize));
-//
-//    //uint normprint = params._pad > 0 ? BinaryNorm(norm) : 0u;
-//    uint normprint = BinaryNorm(norm);
-//
-//    uint cellIndex = pcg32(normprint + pcg32(cellSize + pcg32(p.z + pcg32(p.y + pcg32(p.x))))) % 100000;
-//    uint checkSum = max(jenkinsHash(normprint + jenkinsHash(cellSize+ jenkinsHash(p.z + jenkinsHash(p.y + jenkinsHash(p.x))))), 1);
-//
-//    for (uint i = 0; i < 32; i++)
-//    {
-//        uint idx = cellIndex * 32 + i;
-//        uint checkSumPre; 
-//
-//        checkSumBuffer.InterlockedCompareExchange(idx, 0, checkSum, checkSumPre);
-//        if (checkSumPre == 0 || checkSumPre == checkSum)
-//            return idx;
-//    }
-//
-//    return -1;
-//}
-//
-//int FindCell(float3 pos, float3 jitteredPos, float3 norm, float cellSize, GIParameter params, RWByteAddressBuffer checkSumBuffer, inout SampleGenerator sg)
-//{
-//    uint3 p = uint3(floor((pos - params.sceneBBMin) / cellSize));
-//
-//    //uint normprint = params._pad > 0 ? BinaryNorm(norm) : 0u;
-//    uint normprint = BinaryNorm(norm);
-//    uint cellIndex = pcg32(normprint + pcg32(cellSize + pcg32(p.z + pcg32(p.y + pcg32(p.x))))) % 100000;
-//    uint checkSum = max(jenkinsHash(normprint + jenkinsHash(cellSize + jenkinsHash(p.z + jenkinsHash(p.y + jenkinsHash(p.x))))), 1);
-//
-//
-//    for (uint i = 0; i < 32; i++)
-//    {
-//        uint idx = cellIndex * 32 + i;
-//
-//        if (checkSumBuffer.Load(idx) == checkSum)
-//            return idx;
-//    }
-//
-//    return -1;
-//}
-//
-//int FindCell(float3 jitteredPos, float3 norm, float cellSize, GIParameter params, ByteAddressBuffer checkSumBuffer)
-//{ // + float3(1, 1, 1) * 0.001f;
-//    //+ (sampleNext3D(sg) * 2.0f - 1.0f) * 0.001f; // * cellSize;
-//    //-params.sceneBBMin;
-//    uint3 p = uint3(floor((jitteredPos - params.sceneBBMin)/ cellSize));
-//
-//    uint normprint = BinaryNorm(norm);
-//
-//    uint cellIndex = pcg32(normprint + pcg32(cellSize + pcg32(p.z + pcg32(p.y + pcg32(p.x))))) % 100000;
-//    uint checkSum = max(jenkinsHash(normprint + jenkinsHash(cellSize + jenkinsHash(p.z + jenkinsHash(p.y + jenkinsHash(p.x))))), 1);
-//
-//    for (uint i = 0; i < 32; i++)
-//    {
-//        uint idx = cellIndex * 32 + i;
-//
-//        if (checkSumBuffer.Load(idx) == checkSum)
-//            return idx;
-//    }
-//
-//    return -1;
-//}
+    float cellSizeStep = length(pos - cameraPos) * tan(120 * params.fov * max(1.0 / params.frameDim.y, params.frameDim.y / float((params.frameDim.x * params.frameDim.x))));
+    int logStep = int(floor(log2(cellSizeStep / params.minCellSize)));
+
+    return params.minCellSize * max(0.12f, exp2(logStep));
+}
+
+
 
 #endif // HASH_BUILD_STRUCTURE_GLSL

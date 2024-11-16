@@ -122,6 +122,8 @@ public:
   void updateHdrDescriptors();
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
 
+  void computeSceneBounds();
+
   Scene              m_scene;
   AccelStructure     m_accelStruct;
   RenderOutput       m_offscreen;
