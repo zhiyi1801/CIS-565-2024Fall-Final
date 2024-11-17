@@ -72,6 +72,8 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 	m_GbufferPipeline = createComputePipeline(m_device, createInfo, gbufferPass_comp, sizeof(gbufferPass_comp));
 	m_debug.setObjectName(m_GbufferPipeline, "Gbuffer");
 
+	// m_InitialReservoir = m_pAlloc->createBuffer(m_size.width * m_size.height * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
 	timer.print();
 }
 

@@ -47,5 +47,4 @@ float CalculateCellSize(vec3 pos, vec3 cameraPos, GIParameter params)
 }
 
 
-
 #endif // HASH_BUILD_STRUCTURE_GLSL

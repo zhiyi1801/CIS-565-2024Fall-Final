@@ -233,6 +233,9 @@ struct RtxState
 
   vec3 sceneBBMax;
   float padding1;
+
+  vec3 cameraPos;
+  float padding2;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -517,7 +520,7 @@ struct GIParameter
 	uint frameCount;
 	uint instanceID;
 
-	vec3 sceneBBMin;
+	vec3 bboxMin;
 	float fov;
 
 	float minCellSize;
