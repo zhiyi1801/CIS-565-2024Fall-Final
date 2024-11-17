@@ -19,6 +19,7 @@
 #include "autogen/pathtrace_metallicworkflow.comp.h"
 #include "autogen/gbufferPass.comp.h"
 #include "autogen/initial_ray_trace_pass.comp.h"
+#include "autogen/init_reservoir.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -72,7 +73,8 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 	m_GbufferPipeline = createComputePipeline(m_device, createInfo, gbufferPass_comp, sizeof(gbufferPass_comp));
 	m_debug.setObjectName(m_GbufferPipeline, "Gbuffer");
 
-	// m_InitialReservoir = m_pAlloc->createBuffer(m_size.width * m_size.height * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_InitialReservoirPipeline = createComputePipeline(m_device, createInfo, init_reservoir_comp, sizeof(init_reservoir_comp));
+	m_debug.setObjectName(m_InitialReservoirPipeline, "Gbuffer");
 
 	timer.print();
 }
@@ -299,6 +301,9 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 }
 

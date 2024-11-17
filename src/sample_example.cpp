@@ -428,6 +428,10 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
     render_size = VkExtent2D{render_size.width / m_descalingLevel, render_size.height / m_descalingLevel};
 
   m_rtxState.size = {render_size.width, render_size.height};
+  m_rtxState.cameraPos = CameraManip.getEye();
+  // CameraManip.setFov(60);
+  m_rtxState.cameraFov = CameraManip.getFov();
+
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer

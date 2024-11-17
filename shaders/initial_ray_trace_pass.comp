@@ -68,6 +68,13 @@ void main()
 
   ivec2 imageRes    = rtxState.size;
   ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+
+  // Check if the pixel is outside the image
+  if(imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
+  {
+	return;
+  }
+
   uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
   // Initialize the seed for the random number only once once
@@ -94,9 +101,6 @@ void main()
 
     // // metallic, roughness
     // vec2 metallicRoughness = unpackUnorm4x8(reconnectionDataBuffer[idx].preRcVertexHitInfo.z).xy;
-
-    // Length from the min bouding box
-
 
     // pixelColor += metallicRoughness.y;
   }

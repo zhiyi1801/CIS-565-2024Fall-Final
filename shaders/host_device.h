@@ -235,7 +235,7 @@ struct RtxState
   float padding1;
 
   vec3 cameraPos;
-  float padding2;
+  float cameraFov;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -500,23 +500,9 @@ struct TrigLight
 	vec3 pad;
 };
 
-// Couldn't Combine with GIParameter
-//struct GIParameter
-//{
-//	uint2 frameDim = { };
-//	uint frameCount = 0u;
-//	uint instanceID = 0u;
-//
-//	float3 sceneBBMin = { };
-//	float fov = 0.f;
-//
-//	float4 _pad = { };
-//	float minCellSize = 0.0f;
-//};
-
 struct GIParameter
 {
-	vec2 frameDim;
+	ivec2 frameDim;
 	uint frameCount;
 	uint instanceID;
 

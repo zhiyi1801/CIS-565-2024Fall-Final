@@ -551,6 +551,9 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
                 pathState.preRcVertexWo = wo;
 
+				// Record the position of the prev vertex
+				pathState.preRcVertexPos = state.position;
+
                 // Record the face normal of the prev vertex
                 pathState.preRcVertexNorm = state.normal;
             }
@@ -687,6 +690,8 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 		pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
 	}
 
+    // return initialSampleBuffer[idx].preRcVertexPos;
+
     //if (pathState.validRcPath > 0)
     //{
     //    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
@@ -697,7 +702,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     //}
     // 
 
-    // return radiance;
+    return radiance;
     // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
     // return pathState.rcVertexRadiance;

@@ -195,15 +195,35 @@ void main()
   // 2D index of the pixel
   ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
 
+  // If the pixel is outside the image, return
+  if (imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
+  {
+	return;
+  }
+
   // 1D index of the pixel
   uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
+  // Set GI parameters
   GIParameter params;
+  params.frameDim = rtxState.size;
+  params.frameCount = rtxState.frame;
+  params.bboxMin = rtxState.sceneBBMin;
+  params.minCellSize = rtxState.minCellSize;
+  params.fov = rtxState.cameraFov;
+
+  // Set initial reservoir
   Reservoir r = SetGIReservoir(initialSampleBuffer[idx]);
+
+  // For Debug
+  // imageStore(resultImage, imageCoords, vec4(r.vPos, 1.0f));
+
+  // Build HashAppendData
   HashAppendData data = BuildHashAppendData(r.vPos, r.vNorm, idx, params);
 
-  FinalSample finalSample;
-  finalSample.Li = data.isValid > 0 ? vec3(sin(data.cellIdx), cos(data.cellIdx), cos(data.cellIdx * 2.7445f + 1.4212f)) : vec3(0.f);
+  // Set final sample
+  // FinalSample finalSample;
+  // finalSample.Li = data.isValid > 0 ? vec3(sin(data.cellIdx), cos(data.cellIdx), cos(data.cellIdx * 2.7445f + 1.4212f)) : vec3(0.f);
 
   initialReserviors[idx] = r;
   appendBuffer[idx] = data;
