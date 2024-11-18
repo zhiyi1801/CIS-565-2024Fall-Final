@@ -1,5 +1,5 @@
 #define ENVMAP 1
-#define RR 0        // Using russian roulette
+#define RR 1        // Using russian roulette
 #define RR_DEPTH 0  // Minimum depth
 
 #include "pbr_metallicworkflow.glsl"

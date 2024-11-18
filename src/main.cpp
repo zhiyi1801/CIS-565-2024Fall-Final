@@ -33,6 +33,7 @@
 #include "world_restir_renderer.hpp"
 
 #include "host_defines.h"
+#include <iostream>
 
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
@@ -50,17 +51,50 @@ static void onErrorCallback(int error, const char* description)
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
 
+// 
+//--------------------------------------------------------------------------------------------------
+// Check Validation Layer Support
+//
+bool checkValidationLayerSupport(const std::vector<const char*>& validationLayers) {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for (const char* layerName : validationLayers) {
+        bool found = false;
+        for (const auto& layer : availableLayers) {
+            if (strcmp(layerName, layer.layerName) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Call Back Function
+//
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+    VkDebugUtilsMessageTypeFlagsEXT type,
+    const VkDebugUtilsMessengerCallbackDataEXT* data,
+    void* userData) {
+    std::cerr << "Validation Layer: " << data->pMessage << std::endl;
+    return VK_FALSE;
+}
+
 //--------------------------------------------------------------------------------------------------
 // Application Entry
 //
 int main(int argc, char** argv)
 {
-    uint aaa = sizeof(Reservoir);
-	uint bbb = sizeof(LightBufInfo);
-
   InputParser parser(argc, argv);
-  std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
-  // std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
+  // std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
+  std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
   std::string hdrFilename = parser.getString("-e", "daytime.hdr");
 
   // Setup GLFW window
@@ -106,7 +140,7 @@ int main(int argc, char** argv)
   nvvk::ContextCreateInfo contextInfo(true);
   contextInfo.setVersion(1, 3);                       // Using Vulkan 1.3
   for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
-    contextInfo.addInstanceExtension(reqExtensions[ext_id]);
+  contextInfo.addInstanceExtension(reqExtensions[ext_id]);
   contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
   contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
 
@@ -121,6 +155,23 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, true, &rayQueryFeatures);  // Optional extension
   contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+
+  // Add validation Layer
+  std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+  if (checkValidationLayerSupport(validationLayers)) {
+      contextInfo.addInstanceLayer(validationLayers[0]);
+  }
+  else {
+      std::cerr << "Validation layer not available!" << std::endl;
+  }
+
+  // Call Back
+  VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
+  debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+  debugCreateInfo.pfnUserCallback = debugCallback;
+  contextInfo.instanceCreateInfoExt = &debugCreateInfo;
 
   // Extra queues for parallel load/build
   contextInfo.addRequestedQueue(contextInfo.defaultQueueGCT, 1, 1.0f);  // Loading scene - mipmap generation
@@ -139,7 +190,6 @@ int main(int argc, char** argv)
   features.pDisabledValidationFeatures    = disables.data();
   contextInfo.instanceCreateInfoExt       = &features;
 #endif  // ENABLE_GPU_PRINTF
-
 
   // Creating Vulkan base application
   nvvk::Context vkctx{};

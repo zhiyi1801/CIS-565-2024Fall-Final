@@ -233,10 +233,13 @@ struct RtxState
   float minCellSize;
 
   vec3 sceneBBMax;
-  float padding1;
+  uint cellScanIte;
 
   vec3 cameraPos;
   float cameraFov;
+
+  uint cellCount;
+  vec3 padding1;
 };
 
 // Structure used for retrieving the primitive information in the closest hit

@@ -30,51 +30,17 @@ layout(push_constant) uniform _RtxState
 #include "common.glsl"
 #include "HashBuildStructure.glsl"
 
-#ifndef SWIZZLED
-layout(local_size_x = 8, local_size_y = 8) in;
-#else
-layout(local_size_x = 32, local_size_y = 2) in;
-#extension GL_EXT_shader_8bit_storage : enable  // Using uint_8 ...
-ivec2 SampleSizzled()
-{
-  // Sampling Swizzling
-  // Convert 32x2 to 8x8, where the sampling will follow how invocation are done in a subgroup.
-  // layout(local_size_x = 32, local_size_y = 2) in;
-  ivec2 base   = ivec2(gl_WorkGroupID.xy) * 8;
-  ivec2 subset = ivec2(int(gl_LocalInvocationID.x) & 1, int(gl_LocalInvocationID.x) / 2);
-  subset += gl_LocalInvocationID.x >= 16 ? ivec2(2, -8) : ivec2(0, 0);
-  subset += ivec2(gl_LocalInvocationID.y * 4, 0);
-  return base + subset;
-}
-#endif
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+layout(local_size_x = 8) in;
 
 void main()
 {
-	uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
-
-	// Canvas size
-	ivec2 imageRes    = rtxState.size;
-
-	// 2D index of the pixel
-	ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
-
-	// If the pixel is outside the image, return
-	if (imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
-	{
-	return;
-	}
-
-	// 1D index of the pixel
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
-
-	// Get the hash data
-	HashAppendData data = appendBuffer[idx];
-
-	// If the data is not valid, return
-	if(data.isValid == 0)
+	if (idx >= rtxState.cellCount) 
 	{
 		return;
 	}
 
-	// uint baseIdx = 
+	indexBuffer[idx] = idx;
 }
