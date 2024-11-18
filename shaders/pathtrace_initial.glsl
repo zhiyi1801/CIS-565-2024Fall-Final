@@ -1,5 +1,5 @@
 #define ENVMAP 1
-#define RR 0        // Using russian roulette
+#define RR 1        // Using russian roulette
 #define RR_DEPTH 0  // Minimum depth
 
 #include "pbr_metallicworkflow.glsl"
@@ -590,7 +590,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
 		// Russian Roulette
         {
-#ifdef RR
+#if RR
             // For Russian-Roulette (minimizing live state)
             float rrPcont = (depth >= RR_DEPTH) ?
                 min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
