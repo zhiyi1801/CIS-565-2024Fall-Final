@@ -71,4 +71,5 @@ private:
 	VkPipeline m_GbufferPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_InitialReservoirPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_BuildHashGridPipeline{ VK_NULL_HANDLE };
+	VkPipeline m_ScanCellPipeline{ VK_NULL_HANDLE };
 };

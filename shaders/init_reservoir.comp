@@ -158,6 +158,7 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
 
   data.reservoirIdx = linearIdx;
   data.inCellIdx = invalidInCellIndex;
+  data.isValid = 0;
 
   // Check if the normal is valid
   if (any( bvec3( norm != vec3(0.0)) ))

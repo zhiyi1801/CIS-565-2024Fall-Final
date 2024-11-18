@@ -71,10 +71,8 @@ void main()
 	HashAppendData data = appendBuffer[idx];
 
 	// If the data is not valid, return
-	if(data.isValid == 0)
-	{
-		return;
-	}
+	if(data.isValid == 0) return;
+
 	float tmp = float(indexBuffer[idx]);
 	imageStore(resultImage, imageCoords, vec4(vec3(tmp), 1.f));
 	// uint baseIdx = 
