@@ -64,5 +64,18 @@ void main()
 	return;
 	}
 
-	imageStore(resultImage, imageCoords, vec4(vec3(0.0f, 0.0f, 1.0f), 1.f));
+	// 1D index of the pixel
+	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+
+	// Get the hash data
+	HashAppendData data = appendBuffer[idx];
+
+	// If the data is not valid, return
+	if(data.isValid == 0)
+	{
+		return;
+	}
+	float tmp = float(indexBuffer[idx]);
+	imageStore(resultImage, imageCoords, vec4(vec3(tmp), 1.f));
+	// uint baseIdx = 
 }
