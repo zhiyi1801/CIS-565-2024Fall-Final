@@ -587,6 +587,19 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
             lastMaterial = state.mat;
         }
+
+		// Russian Roulette
+        {
+#ifdef RR
+            // For Russian-Roulette (minimizing live state)
+            float rrPcont = (depth >= RR_DEPTH) ?
+                min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
+                1.0;
+            if (rand(prd.seed) >= rrPcont)
+                break;                // paths with low throughput that won't contribute
+            throughput /= rrPcont;  // boost the energy of the non-terminated paths
+#endif
+        }
     }
 
     return radiance;

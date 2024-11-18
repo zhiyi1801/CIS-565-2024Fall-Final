@@ -67,6 +67,7 @@ private:
 	VkPipelineLayout  m_pipelineLayout{ VK_NULL_HANDLE };
 
 	VkPipeline m_pipeline{ VK_NULL_HANDLE };
+	VkPipeline m_InitialSamplePipeline{ VK_NULL_HANDLE };
 	VkPipeline m_GbufferPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_InitialReservoirPipeline{ VK_NULL_HANDLE };
 };
