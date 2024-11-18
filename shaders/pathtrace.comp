@@ -90,6 +90,7 @@ void main()
 
   ivec2 imageRes    = rtxState.size;
   ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+  uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
   // Initialize the seed for the random number only once once
   // uvec2 s    = pcg2d(imageCoords * int(clockARB()));
@@ -117,7 +118,7 @@ void main()
     // Wrap & SM visualization
     // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1)
   }
-
+  
   // Saving pixel color
   if(rtxState.frame > 0)
   {

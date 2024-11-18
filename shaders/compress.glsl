@@ -179,5 +179,4 @@ vec3 decompress_unit_vec(uint packed)
   }
 }
 
-
 #endif  // COMPRESS_GLSL

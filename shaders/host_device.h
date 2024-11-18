@@ -360,12 +360,15 @@ struct InitialSample
 	vec3 preRcVertexPos;
 	float pdf;
 
+	// prev vertex world normal
 	vec3 preRcVertexNorm;
 	int padding1;
 
+	// reconnect vertex world position
 	vec3 rcVertexPos;
 	int padding2;
 
+	// reconnect vertex world normal
 	vec3 rcVertexNorm;
 	int padding3;
 
@@ -377,9 +380,10 @@ struct InitialSample
 // prev vertex is the vertex before the reconnect vertex, should be of high roughness so that the bsdf is meaningful for every direction
 struct ReconnectionData
 {
+	// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
 	uvec4 preRcVertexHitInfo;
 
-	// Throughput from the camera to the prev vertex
+	// Accumulate throughput from the camera to the prev vertex
 	vec3 pathPreThp;   
 	uint pathLength;
 
@@ -387,13 +391,17 @@ struct ReconnectionData
 	vec3 pathPreRadiance;
 	uint padding1;
 
-	// 
+	// The ouput ray direction on the prev vertex(from the prev vertex)
 	vec3 preRcVertexWo;
 	uint padding2;
 };
 
 struct PathPayLoad
 {
+	// info of the prev vertex
+	// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
+	uvec4 preRcVertexHitInfo;
+
 	vec3 prefixThp;
 	uint currentVertexIndex; //vertexIndex along the path, intialized value is 1
 
@@ -409,17 +417,26 @@ struct PathPayLoad
 	vec3 rcVertexRadiance;
 	int padding1;
 
-	vec3 rcVertexPos;
+	vec3 preRcVertexPos;
 	int padding2;
 
-	vec3 rcVertexNorm;
+	vec3 rcVertexPos;
 	int padding3;
+
+	vec3 preRcVertexNorm;
+	int padding4;
+
+	vec3 rcVertexNorm;
+	int padding5;
 
 	vec3 rcEnvDir;
 	int rcEnv;
 
 	vec3 cacheBsdfCosWeight;
-	int padding4;
+	int padding6;
+
+	vec3 preRcVertexWo;
+	int validRcPath;
 };
 
 // Light sampling data
