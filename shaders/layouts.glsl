@@ -64,6 +64,7 @@ layout(set = S_RESTIR, binding = eCellCounter, scalar)   buffer _CellCounterBuff
 layout(set = S_RESTIR, binding = eInitialSamples, scalar)   buffer _InitialSampleBuffer { InitialSample initialSampleBuffer[]; };
 layout(set = S_RESTIR, binding = eReconnection, scalar)   buffer _ReconnectionDataBuffer { ReconnectionData reconnectionDataBuffer[]; };
 
+layout(set = S_RESTIR, binding = eTestUintImage)					uniform uimage2D			testUintImage;
 layout(set = S_RESTIR, binding = eTestImage)					uniform image2D			testImage;
 
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };

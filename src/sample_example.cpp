@@ -427,6 +427,12 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   if(m_descaling)
     render_size = VkExtent2D{render_size.width / m_descalingLevel, render_size.height / m_descalingLevel};
 
+  // TODO: sceneGridDimension should be a parameter can be controlled
+  float sceneGridDimension = 80.0f;
+  // The min size of the cell(will be further processed in compute shader)
+  glm::vec3 boudingSize = glm::abs((m_rtxState.sceneBBMax - m_rtxState.sceneBBMin) / sceneGridDimension);
+  m_rtxState.minCellSize = std::max(boudingSize.x, std::max(boudingSize.y, boudingSize.z));
+
   m_rtxState.size = {render_size.width, render_size.height};
   m_rtxState.cameraPos = CameraManip.getEye();
   // CameraManip.setFov(60);

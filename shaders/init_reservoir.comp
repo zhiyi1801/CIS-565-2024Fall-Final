@@ -157,6 +157,7 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
   HashAppendData data;
 
   data.reservoirIdx = linearIdx;
+  data.inCellIdx = invalidInCellIndex;
 
   // Check if the normal is valid
   if (any( bvec3( norm != vec3(0.0)) ))
@@ -168,7 +169,7 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
     // Check if the cell is valid
     if(cellIdx != -1)
     {
-      uint inCellIdx;
+      uint inCellIdx = invalidInCellIndex;
 
       // Increment the counter and get the inCellIdx
       inCellIdx = atomicAdd(cellCounterBuffer[cellIdx], 1);
@@ -179,6 +180,19 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
   }
 
   return data;
+}
+
+//
+//--------------------------------------------------------------------------------------------------
+//
+//
+vec3 randomColor(vec3 _in) {
+    // Generate a pseudo-random color based on the input vector
+    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
+    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
+
+    return vec3(r, g, b);
 }
 
 //
@@ -215,11 +229,15 @@ void main()
   // Set initial reservoir
   Reservoir r = SetGIReservoir(initialSampleBuffer[idx]);
 
-  // For Debug
-  // imageStore(resultImage, imageCoords, vec4(r.vPos, 1.0f));
-
   // Build HashAppendData
   HashAppendData data = BuildHashAppendData(r.vPos, r.vNorm, idx, params);
+
+  // For Debug
+  // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
+  imageStore(testUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
+  //imageStore(testImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
+  float cellIdxF = float(data.cellIdx % 256);
+  imageStore(testImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
 
   // Set final sample
   // FinalSample finalSample;

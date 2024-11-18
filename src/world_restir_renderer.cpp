@@ -86,6 +86,7 @@ void WorldRestirRenderer::update(const VkExtent2D& size)
 	m_pAlloc->destroy(m_InitialReservoir);
 	m_pAlloc->destroy(m_AppendBuffer);
 	m_pAlloc->destroy(m_testImage);
+	m_pAlloc->destroy(m_testUintImage);
 	m_pAlloc->destroy(m_InitialSamples);
 	m_pAlloc->destroy(m_ReconnectionData);
 	for (int i = 0; i < 2; ++i)
@@ -110,6 +111,7 @@ void WorldRestirRenderer::destroy()
 	m_pAlloc->destroy(m_ReconnectionData);
 	m_pAlloc->destroy(m_FinalSample);
 	m_pAlloc->destroy(m_testImage);
+	m_pAlloc->destroy(m_testUintImage);
 
 	m_pAlloc->destroy(m_gbuffer[0]);
 	m_pAlloc->destroy(m_gbuffer[1]);
@@ -179,6 +181,10 @@ void WorldRestirRenderer::createImage()
 			m_size, m_testImageFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
 
+		auto testUintImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, m_testUintImageFormat,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
+
 		nvvk::Image gbimage1 = m_pAlloc->createImage(colorCreateInfo);
 		NAME_VK(gbimage1.image);
 		nvvk::Image gbimage2 = m_pAlloc->createImage(colorCreateInfo);
@@ -190,6 +196,10 @@ void WorldRestirRenderer::createImage()
 		NAME_VK(testImage.image);
 		VkImageViewCreateInfo ivInfoTest = nvvk::makeImageViewCreateInfo(testImage.image, testImageCreateInfo);
 
+		nvvk::Image testUintImage = m_pAlloc->createImage(testUintImageCreateInfo);
+		NAME_VK(testUintImage.image);
+		VkImageViewCreateInfo ivInfoUintTest = nvvk::makeImageViewCreateInfo(testUintImage.image, testUintImageCreateInfo);
+
 		m_gbuffer[0] = m_pAlloc->createTexture(gbimage1, ivInfo1);
 		m_gbuffer[1] = m_pAlloc->createTexture(gbimage2, ivInfo2);
 		m_gbuffer[0].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -197,6 +207,9 @@ void WorldRestirRenderer::createImage()
 
 		m_testImage = m_pAlloc->createTexture(testImage, ivInfoTest);
 		m_testImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		m_testUintImage = m_pAlloc->createTexture(testUintImage, ivInfoUintTest);
+		m_testUintImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
 	// Setting the image layout for both color and depth
@@ -206,6 +219,7 @@ void WorldRestirRenderer::createImage()
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_testImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_testUintImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		genCmdBuf.submitAndWait(cmdBuf);
 	}
 }
@@ -231,6 +245,7 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::eInitialSamples, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eReconnection, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
+	m_bind.addBinding({ ReSTIRBindings::eTestUintImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eTestImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
 
 	m_descPool = m_bind.createPool(m_device, m_descSet.size(), VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
@@ -243,7 +258,7 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 13> writes;
+	std::array<VkWriteDescriptorSet, 14> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
@@ -276,7 +291,8 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo);
 		writes[11] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo);
 
-		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestImage, &m_testImage.descriptor);
+		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestUintImage, &m_testUintImage.descriptor);
+		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestImage, &m_testImage.descriptor);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}
@@ -296,6 +312,10 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	m_state.maxBounces = 3;
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
 
+	// Set buffers to zero
+	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
+	vkCmdFillBuffer(cmdBuf, m_CellCounter[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	
 	// Dispatching the shader
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);

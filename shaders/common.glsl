@@ -26,6 +26,7 @@
 #define RAYCOMMON_GLSL
 
 const float InvalidPdf = -1.0;
+const uint invalidInCellIndex = 0xFFFFFFFF;
 
 //-----------------------------------------------------------------------
 // Debugging

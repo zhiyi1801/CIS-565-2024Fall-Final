@@ -38,9 +38,11 @@ private:
 	// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
 	VkFormat m_gbufferFormat{ VK_FORMAT_R32G32B32A32_UINT };
 	VkFormat m_testImageFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+	VkFormat m_testUintImageFormat{ VK_FORMAT_R32G32B32A32_UINT };
 
 	std::array<nvvk::Texture, 2> m_gbuffer;
 	nvvk::Texture m_testImage;
+	nvvk::Texture m_testUintImage;
 
 	nvvk::Buffer m_InitialReservoir;
 	nvvk::Buffer m_AppendBuffer;
