@@ -70,4 +70,5 @@ private:
 	VkPipeline m_InitialSamplePipeline{ VK_NULL_HANDLE };
 	VkPipeline m_GbufferPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_InitialReservoirPipeline{ VK_NULL_HANDLE };
+	VkPipeline m_BuildHashGridPipeline{ VK_NULL_HANDLE };
 };

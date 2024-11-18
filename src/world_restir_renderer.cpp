@@ -20,6 +20,7 @@
 #include "autogen/gbufferPass.comp.h"
 #include "autogen/initial_ray_trace_pass.comp.h"
 #include "autogen/init_reservoir.comp.h"
+#include "autogen/build_hash_grid.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -78,6 +79,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 
 	m_InitialReservoirPipeline = createComputePipeline(m_device, createInfo, init_reservoir_comp, sizeof(init_reservoir_comp));
 	m_debug.setObjectName(m_InitialReservoirPipeline, "Initial Reservoir");
+
+	m_BuildHashGridPipeline = createComputePipeline(m_device, createInfo, build_hash_grid_comp, sizeof(build_hash_grid_comp));
+	m_debug.setObjectName(m_BuildHashGridPipeline, "Build Hash Grid");
 
 	timer.print();
 }
@@ -141,12 +145,14 @@ void WorldRestirRenderer::destroy()
 	destroyPipeline(m_InitialSamplePipeline);
 	destroyPipeline(m_GbufferPipeline);
 	destroyPipeline(m_InitialReservoirPipeline);
+	destroyPipeline(m_BuildHashGridPipeline);
 
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = VK_NULL_HANDLE;
 	m_pipeline = VK_NULL_HANDLE;
 	m_GbufferPipeline = VK_NULL_HANDLE;
 	m_InitialSamplePipeline = VK_NULL_HANDLE;
+	m_BuildHashGridPipeline = VK_NULL_HANDLE;
 }
 
 void WorldRestirRenderer::createBuffer()
@@ -353,6 +359,11 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
+
+	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
 }

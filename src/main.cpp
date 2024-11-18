@@ -60,6 +60,7 @@ int main(int argc, char** argv)
 
   InputParser parser(argc, argv);
   std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
+  // std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
   std::string hdrFilename = parser.getString("-e", "daytime.hdr");
 
   // Setup GLFW window
