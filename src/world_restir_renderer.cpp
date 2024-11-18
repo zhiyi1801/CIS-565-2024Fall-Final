@@ -304,6 +304,22 @@ void WorldRestirRenderer::updateDescriptorSet()
 	}
 }
 
+void InsertPerfMarker(VkCommandBuffer commandBuffer, const char* name, float color[4]) {
+	VkDebugUtilsLabelEXT labelInfo = {};
+	labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+	labelInfo.pLabelName = name;
+	labelInfo.color[0] = color[0];
+	labelInfo.color[1] = color[1];
+	labelInfo.color[2] = color[2];
+	labelInfo.color[3] = color[3];
+
+	vkCmdBeginDebugUtilsLabelEXT(commandBuffer, &labelInfo);
+}
+
+void EndPerfMarker(VkCommandBuffer commandBuffer) {
+	vkCmdEndDebugUtilsLabelEXT(commandBuffer);
+}
+
 #define GROUP_SIZE 8  // Same group size as in compute shader
 void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
@@ -322,15 +338,23 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
 	vkCmdFillBuffer(cmdBuf, m_CellCounter[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
 	
+	float color[3][4] = { {0.0f, 1.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f} };
+	uint count = 0;
 	// Dispatching the shader
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	InsertPerfMarker(cmdBuf, "Compute Shader: GBuffer", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
+	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Sample", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialSamplePipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 }
 
 //void reflectTest()
