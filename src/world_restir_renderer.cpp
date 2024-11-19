@@ -180,7 +180,7 @@ void WorldRestirRenderer::createBuffer()
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellStorage[i] = m_pAlloc->createBuffer(elementCount * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
@@ -331,7 +331,36 @@ void EndPerfMarker(VkCommandBuffer commandBuffer) {
 	vkCmdEndDebugUtilsLabelEXT(commandBuffer);
 }
 
+// Floor of log2 of x
+inline int ilog2(int x) {
+	int lg = 0;
+	while (x >>= 1) {
+		++lg;
+	}
+	return lg;
+}
+
+// Ceiling of log2 of x
+inline int ilog2ceil(int x) {
+	return x == 1 ? 0 : ilog2(x - 1) + 1;
+}
+
 #define GROUP_SIZE 8  // Same group size as in compute shader
+
+// Exclusive scan
+void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf)
+{
+	// Iteration of scan
+	uint ilogn = ilog2ceil(m_state.cellCount);
+	for (int i = 0; i < ilogn; ++i)
+	{
+		m_state.cellScanIte = i;
+		vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
+		vkCmdDispatch(cmdBuf, (m_state.cellCount + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+	}
+}
+
 void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
 	descSets.push_back(m_descSet[(frames + 1) % 2]);
@@ -346,7 +375,11 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	// Sending the push constant information
 	// TODO
+	// The number of cells(3200000)
 	m_state.cellCount = cellSize;
+
+	// The iteration counter of scan
+	m_state.cellScanIte = 0;
 	m_state.environmentProb = 0.5;
 	m_state.maxBounces = 3;
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);

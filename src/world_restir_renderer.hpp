@@ -23,11 +23,12 @@ public:
 	void createImage();
 	void createDescriptorSet();
 	void updateDescriptorSet();
-	void test();
 	const std::string name() override { return std::string("WorldRestir"); }
 
 	void setRecompile(bool recompile) { m_Recompile = recompile; }
 	void setStateChanged(bool stateChanged) { m_StateChanged = stateChanged; }
+
+	void cellScan(const VkCommandBuffer& cmdBuf);
 
 private:
 	nvvk::ResourceAllocator* m_pAlloc{ nullptr };  // Allocator for buffer, images, acceleration structures

@@ -44,12 +44,17 @@ void main()
 
 	if (idx >= uint(1 << rtxState.cellScanIte))
     {
-        indexBuffer[idx] = cellCounterBuffer[idx - uint(1 << rtxState.cellScanIte)] + cellCounterBuffer[idx];
+        indexBuffer[idx + 1] = cellCounterBuffer[idx - uint(1 << rtxState.cellScanIte)] + cellCounterBuffer[idx];
     }
     else
     {
-        indexBuffer[idx] = cellCounterBuffer[idx];
+        indexBuffer[idx + 1] = cellCounterBuffer[idx];
     }
 
-	// idxBuffer[idx] = idx;
+	if(idx == 0)
+	{
+		indexBuffer[0] = 0;
+	}
+
+	// indexBuffer[idx] = idx;
 }
