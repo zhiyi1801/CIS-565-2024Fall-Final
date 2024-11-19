@@ -38,12 +38,12 @@ private:
 
 	// Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
 	VkFormat m_gbufferFormat{ VK_FORMAT_R32G32B32A32_UINT };
-	VkFormat m_testImageFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-	VkFormat m_testUintImageFormat{ VK_FORMAT_R32G32B32A32_UINT };
+	VkFormat m_DebugImageFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+	VkFormat m_DebugUintImageFormat{ VK_FORMAT_R32G32B32A32_UINT };
 
 	std::array<nvvk::Texture, 2> m_gbuffer;
-	nvvk::Texture m_testImage;
-	nvvk::Texture m_testUintImage;
+	nvvk::Texture m_DebugImage;
+	nvvk::Texture m_DebugUintImage;
 
 	nvvk::Buffer m_InitialReservoir;
 	nvvk::Buffer m_AppendBuffer;
@@ -56,6 +56,10 @@ private:
 	std::array<nvvk::Buffer, 2> m_IndexBuffer;
 	std::array<nvvk::Buffer, 2> m_CheckSumBuffer;
 	std::array<nvvk::Buffer, 2> m_CellCounter;
+
+	// Debug buffer
+	nvvk::Buffer m_DebugUintBuffer;
+	nvvk::Buffer m_DebugFloatBuffer;
 	
 	bool m_Recompile = true;
 	bool m_StateChanged = false;
@@ -74,6 +78,8 @@ private:
 	VkPipeline m_InitialReservoirPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_BuildHashGridPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_ScanCellPipeline{ VK_NULL_HANDLE };
+	VkPipeline m_ScanCellValidationPipeline{ VK_NULL_HANDLE };
 
 	VkDeviceSize m_CellSize;
+	VkDeviceSize m_DebugBufferSize;
 };

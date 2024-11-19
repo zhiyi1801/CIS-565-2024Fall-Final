@@ -37,12 +37,24 @@ layout(local_size_x = 1024) in;
 void main()
 {
 	uint idx = gl_GlobalInvocationID.x;
+
+	// If the index is greater than the number of cells, return
 	if (idx >= rtxState.cellCount) 
 	{
 		return;
 	}
+
 	if(idx == 0)
 	{
-		
+		// DebugUintBuffer1
+		uint val = (indexBuffer[0] == cellCounterBuffer[0]) ? 0 : 1;
+		atomicCompSwap(debugUintBuffer[1], 0, val);
+	}
+
+	else
+	{
+		// DebugUintBuffer1
+		uint val = ((indexBuffer[idx] - indexBuffer[idx - 1]) == cellCounterBuffer[idx]) ? 0 : 1;
+		atomicCompSwap(debugUintBuffer[1], 0, val);
 	}
 }

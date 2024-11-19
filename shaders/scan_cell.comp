@@ -73,6 +73,10 @@ void main()
 		}
     }
 
+	// if(idx == 0 && rtxState.cellScanIte == 0)
+	// {
+	// 	indexBuffer[0] -= 1;
+	// }
 
 	// indexBuffer[idx].value = cellCounterBuffer[idx];
 

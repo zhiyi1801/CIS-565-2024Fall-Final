@@ -50,6 +50,8 @@ using uint  = unsigned int;
 #define END_ENUM()
 #endif
 
+const uint cellSizeNoHash = 10000;
+
 // Sets
 START_ENUM(SetBindings)
   S_ACCEL = 0,  // Acceleration structure
@@ -104,8 +106,10 @@ eCellCounter = 9,
 eInitialSamples = 10,
 eReconnection = 11,
 eIndexTemp = 12,
-eTestUintImage = 15,
-eTestImage = 16
+eDebugUintImage = 15,
+eDebugImage = 16,
+eDebugUintBuffer = 17,
+eDebugFloatBuffer = 18
 END_ENUM();
 
 START_ENUM(DebugMode)

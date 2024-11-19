@@ -44,7 +44,7 @@ int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params)
   uint normprint = BinaryNorm(norm);
 
   // Get the cell index
-  uint cellIndex = pcg32(normprint + pcg32( uint( cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % 100;
+  uint cellIndex = pcg32(normprint + pcg32( uint( cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
 
   // Second hash index 
   uint checkSum = max(jenkinsHash(normprint + jenkinsHash( uint(cellSize+ jenkinsHash(cellP.z + jenkinsHash(cellP.y + jenkinsHash(cellP.x)))) )), 1);
@@ -84,7 +84,7 @@ int FindCell(vec3 pos, vec3 norm, vec3 cellSize, GIParameter params)
   uint normprint = BinaryNorm(norm);
 
   // Get the cell index
-  uint cellIndex = pcg32(normprint + pcg32( uint(cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % 100;
+  uint cellIndex = pcg32(normprint + pcg32( uint(cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
 
   // Second hash index 
   uint checkSum = max(jenkinsHash(normprint + jenkinsHash( uint(cellSize+ jenkinsHash(cellP.z + jenkinsHash(cellP.y + jenkinsHash(cellP.x)))) )), 1);
@@ -174,6 +174,8 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
 
       // Increment the counter and get the inCellIdx
       inCellIdx = atomicAdd(cellCounterBuffer[cellIdx], 1);
+      // DbugUintBuffer0 is used to count the number of valid cells
+      atomicAdd(debugUintBuffer[0], 1);
       data.isValid = 1;
       data.cellIdx = cellIdx;
       data.inCellIdx = inCellIdx;
@@ -235,10 +237,10 @@ void main()
 
   // For Debug
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
-  imageStore(testUintImage, imageCoords, uvec4(rtxState.size.x, rtxState.size.y, 0, 1));
-  //imageStore(testImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
+  // imageStore(debugUintImage, imageCoords, uvec4(rtxState.size.x, rtxState.size.y, 0, 1));
+  imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
   float cellIdxF = float(data.cellIdx % 256);
-  imageStore(testImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
+  imageStore(debugImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
 
   // Set final sample
   // FinalSample finalSample;

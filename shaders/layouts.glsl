@@ -65,8 +65,10 @@ layout(set = S_RESTIR, binding = eInitialSamples, scalar)   buffer _InitialSampl
 layout(set = S_RESTIR, binding = eReconnection, scalar)   buffer _ReconnectionDataBuffer { ReconnectionData reconnectionDataBuffer[]; };
 layout(set = S_RESTIR, binding = eIndexTemp, scalar)   buffer _IndexTempBuffer { uint indexTempBuffer[]; };
 
-layout(set = S_RESTIR, binding = eTestUintImage)					uniform uimage2D			testUintImage;
-layout(set = S_RESTIR, binding = eTestImage)					uniform image2D			testImage;
+layout(set = S_RESTIR, binding = eDebugUintImage)					uniform uimage2D			debugUintImage;
+layout(set = S_RESTIR, binding = eDebugImage)						uniform image2D			debugImage;
+layout(set = S_RESTIR, binding = eDebugUintBuffer)					buffer _DebugUintBuffer { uint debugUintBuffer[]; };
+layout(set = S_RESTIR, binding = eDebugFloatBuffer)					buffer _DebugFloatBuffer { uint debugFloatBuffer[]; };
 
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };
