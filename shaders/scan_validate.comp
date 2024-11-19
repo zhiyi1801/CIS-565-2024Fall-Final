@@ -44,11 +44,24 @@ void main()
 		return;
 	}
 
+	// Change indexBuffer[aa] manually and check if it is updated
+	// uint aa = 1;
+	// if(idx == aa)
+	// {
+	// 	indexBuffer[aa] = indexBuffer[aa] + 1327;
+	// }
+
 	if(idx == 0)
 	{
 		// DebugUintBuffer1
 		uint val = (indexBuffer[0] == cellCounterBuffer[0]) ? 0 : 1;
 		atomicCompSwap(debugUintBuffer[1], 0, val);
+
+		if(val == 1)
+		{
+			atomicCompSwap(debugUintBuffer[2], 0, idx);
+			atomicCompSwap(debugUintBuffer[3], 0, indexBuffer[0] - cellCounterBuffer[0]);
+		}
 	}
 
 	else
@@ -56,5 +69,11 @@ void main()
 		// DebugUintBuffer1
 		uint val = ((indexBuffer[idx] - indexBuffer[idx - 1]) == cellCounterBuffer[idx]) ? 0 : 1;
 		atomicCompSwap(debugUintBuffer[1], 0, val);
+
+		if(val == 1)
+		{
+			atomicCompSwap(debugUintBuffer[2], 0, idx);
+			atomicCompSwap(debugUintBuffer[3], 0, indexBuffer[idx] - indexBuffer[idx - 1] - cellCounterBuffer[idx]);
+		}
 	}
 }
