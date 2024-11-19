@@ -544,18 +544,18 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
 	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
-	//vkCmdDispatch(cmdBuf, (cellSize + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
 	this->cellScan(cmdBuf, frames);
 	EndPerfMarker(cmdBuf);
 
-	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan Validate", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellValidationPipeline);
-	vkCmdDispatch(cmdBuf, (cellSize + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
-	EndPerfMarker(cmdBuf);
+	//InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan Validate", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellValidationPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
+	//EndPerfMarker(cmdBuf);
 
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 
 	EndPerfMarker(cmdBuf);
 }
