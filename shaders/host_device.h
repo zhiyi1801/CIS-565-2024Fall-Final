@@ -50,6 +50,8 @@ using uint  = unsigned int;
 #define END_ENUM()
 #endif
 
+const uint cellSizeNoHash = 10000;
+
 // Sets
 START_ENUM(SetBindings)
   S_ACCEL = 0,  // Acceleration structure
@@ -103,8 +105,11 @@ eCheckSum = 8,
 eCellCounter = 9,
 eInitialSamples = 10,
 eReconnection = 11,
-eTestUintImage = 15,
-eTestImage = 16
+eIndexTemp = 12,
+eDebugUintImage = 15,
+eDebugImage = 16,
+eDebugUintBuffer = 17,
+eDebugFloatBuffer = 18
 END_ENUM();
 
 START_ENUM(DebugMode)
@@ -515,5 +520,11 @@ struct GIParameter
 
 	float minCellSize;
 	vec3 _pad;
+};
+
+struct uintStruct
+{
+	uint value;
+	vec3 padding;
 };
 #endif  // COMMON_HOST_DEVICE

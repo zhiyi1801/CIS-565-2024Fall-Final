@@ -22,6 +22,7 @@
 #include "autogen/init_reservoir.comp.h"
 #include "autogen/build_hash_grid.comp.h"
 #include "autogen/scan_cell.comp.h"
+#include "autogen/scan_validate.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -42,6 +43,8 @@ void WorldRestirRenderer::setup(const VkDevice& device, const VkPhysicalDevice& 
 
 void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
 {
+	m_CellSize = cellSizeNoHash * 32;
+	m_DebugBufferSize = 1000;
 	m_size = size;
 	MilliTimer timer;
 	LOGI("Create ReSTIR Pipeline");
@@ -87,6 +90,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 	m_ScanCellPipeline = createComputePipeline(m_device, createInfo, scan_cell_comp, sizeof(scan_cell_comp));
 	m_debug.setObjectName(m_ScanCellPipeline, "Scan Cell");
 
+	m_ScanCellValidationPipeline = createComputePipeline(m_device, createInfo, scan_validate_comp, sizeof(scan_validate_comp));
+	m_debug.setObjectName(m_ScanCellPipeline, "Scan Cell Validate");
+
 	timer.print();
 }
 
@@ -96,10 +102,14 @@ void WorldRestirRenderer::update(const VkExtent2D& size)
 	m_pAlloc->destroy(m_FinalSample);
 	m_pAlloc->destroy(m_InitialReservoir);
 	m_pAlloc->destroy(m_AppendBuffer);
-	m_pAlloc->destroy(m_testImage);
-	m_pAlloc->destroy(m_testUintImage);
+	m_pAlloc->destroy(m_DebugImage);
+	m_pAlloc->destroy(m_DebugUintImage);
 	m_pAlloc->destroy(m_InitialSamples);
 	m_pAlloc->destroy(m_ReconnectionData);
+	m_pAlloc->destroy(m_IndexTempBuffer);
+	m_pAlloc->destroy(m_DebugUintBuffer);
+	m_pAlloc->destroy(m_DebugFloatBuffer);
+
 	for (int i = 0; i < 2; ++i)
 	{
 		m_pAlloc->destroy(m_gbuffer[i]);
@@ -121,8 +131,11 @@ void WorldRestirRenderer::destroy()
 	m_pAlloc->destroy(m_InitialSamples);
 	m_pAlloc->destroy(m_ReconnectionData);
 	m_pAlloc->destroy(m_FinalSample);
-	m_pAlloc->destroy(m_testImage);
-	m_pAlloc->destroy(m_testUintImage);
+	m_pAlloc->destroy(m_DebugImage);
+	m_pAlloc->destroy(m_DebugUintImage);
+	m_pAlloc->destroy(m_IndexTempBuffer);
+	m_pAlloc->destroy(m_DebugUintBuffer);
+	m_pAlloc->destroy(m_DebugFloatBuffer);
 
 	m_pAlloc->destroy(m_gbuffer[0]);
 	m_pAlloc->destroy(m_gbuffer[1]);
@@ -151,6 +164,7 @@ void WorldRestirRenderer::destroy()
 	destroyPipeline(m_InitialReservoirPipeline);
 	destroyPipeline(m_BuildHashGridPipeline);
 	destroyPipeline(m_ScanCellPipeline);
+	destroyPipeline(m_ScanCellValidationPipeline);
 
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = VK_NULL_HANDLE;
@@ -175,12 +189,19 @@ void WorldRestirRenderer::createBuffer()
 
 	VkDeviceSize reseviorCount = 2 * elementCount;
 
-	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
+	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
+	// index temp buffer for cell index scan
+	m_IndexTempBuffer = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+	// Debug buffers
+	m_DebugUintBuffer = m_pAlloc->createBuffer(m_DebugBufferSize * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	m_DebugFloatBuffer = m_pAlloc->createBuffer(m_DebugBufferSize * sizeof(float), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
 	for (int i = 0; i < 2; ++i)
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellStorage[i] = m_pAlloc->createBuffer(elementCount * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
@@ -194,12 +215,12 @@ void WorldRestirRenderer::createImage()
 			m_size, m_gbufferFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
 
-		auto testImageCreateInfo = nvvk::makeImage2DCreateInfo(
-			m_size, m_testImageFormat,
+		auto DebugImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, m_DebugImageFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
 
-		auto testUintImageCreateInfo = nvvk::makeImage2DCreateInfo(
-			m_size, m_testUintImageFormat,
+		auto DebugUintImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, m_DebugUintImageFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, true);
 
 		nvvk::Image gbimage1 = m_pAlloc->createImage(colorCreateInfo);
@@ -209,24 +230,24 @@ void WorldRestirRenderer::createImage()
 		VkImageViewCreateInfo ivInfo1 = nvvk::makeImageViewCreateInfo(gbimage1.image, colorCreateInfo);
 		VkImageViewCreateInfo ivInfo2 = nvvk::makeImageViewCreateInfo(gbimage2.image, colorCreateInfo);
 
-		nvvk::Image testImage = m_pAlloc->createImage(testImageCreateInfo);
-		NAME_VK(testImage.image);
-		VkImageViewCreateInfo ivInfoTest = nvvk::makeImageViewCreateInfo(testImage.image, testImageCreateInfo);
+		nvvk::Image DebugImage = m_pAlloc->createImage(DebugImageCreateInfo);
+		NAME_VK(DebugImage.image);
+		VkImageViewCreateInfo ivInfoDebug = nvvk::makeImageViewCreateInfo(DebugImage.image, DebugImageCreateInfo);
 
-		nvvk::Image testUintImage = m_pAlloc->createImage(testUintImageCreateInfo);
-		NAME_VK(testUintImage.image);
-		VkImageViewCreateInfo ivInfoUintTest = nvvk::makeImageViewCreateInfo(testUintImage.image, testUintImageCreateInfo);
+		nvvk::Image DebugUintImage = m_pAlloc->createImage(DebugUintImageCreateInfo);
+		NAME_VK(DebugUintImage.image);
+		VkImageViewCreateInfo ivInfoUintDebug = nvvk::makeImageViewCreateInfo(DebugUintImage.image, DebugUintImageCreateInfo);
 
 		m_gbuffer[0] = m_pAlloc->createTexture(gbimage1, ivInfo1);
 		m_gbuffer[1] = m_pAlloc->createTexture(gbimage2, ivInfo2);
 		m_gbuffer[0].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		m_gbuffer[1].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-		m_testImage = m_pAlloc->createTexture(testImage, ivInfoTest);
-		m_testImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		m_DebugImage = m_pAlloc->createTexture(DebugImage, ivInfoDebug);
+		m_DebugImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-		m_testUintImage = m_pAlloc->createTexture(testUintImage, ivInfoUintTest);
-		m_testUintImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		m_DebugUintImage = m_pAlloc->createTexture(DebugUintImage, ivInfoUintDebug);
+		m_DebugUintImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
 	// Setting the image layout for both color and depth
@@ -235,8 +256,8 @@ void WorldRestirRenderer::createImage()
 		auto              cmdBuf = genCmdBuf.createCommandBuffer();
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-		nvvk::cmdBarrierImageLayout(cmdBuf, m_testImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-		nvvk::cmdBarrierImageLayout(cmdBuf, m_testUintImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugUintImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		genCmdBuf.submitAndWait(cmdBuf);
 	}
 }
@@ -261,9 +282,14 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::eCellCounter, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eInitialSamples, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eReconnection, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eIndexTemp, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
-	m_bind.addBinding({ ReSTIRBindings::eTestUintImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
-	m_bind.addBinding({ ReSTIRBindings::eTestImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+	// Debug images
+	m_bind.addBinding({ ReSTIRBindings::eDebugUintImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eDebugImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+	// Debug buffers
+	m_bind.addBinding({ ReSTIRBindings::eDebugUintBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eDebugFloatBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
 	m_descPool = m_bind.createPool(m_device, m_descSet.size(), VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
 	CREATE_NAMED_VK(m_descSetLayout, m_bind.createLayout(m_device));
@@ -275,10 +301,10 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 14> writes;
+	std::array<VkWriteDescriptorSet, 17> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
-	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
+	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
 	VkDeviceSize reseviorCount = 2 * elementCount;
 
 	for (int i = 0; i < 2; i++) {
@@ -290,7 +316,8 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
 		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
-		VkDescriptorBufferInfo indexeBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
+		VkDescriptorBufferInfo indexBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
+		VkDescriptorBufferInfo indexTempBufInfo = { m_IndexTempBuffer.buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo checkSumBufInfo = { m_CheckSumBuffer[i].buffer, 0, hashBufferSize };
 		VkDescriptorBufferInfo cellCounterBufInfo = { m_CellCounter[i].buffer, 0, hashBufferSize };
 
@@ -302,14 +329,22 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes[4] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAppend, &appendBufInfo);
 		writes[5] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eFinal, &finalSampleBufInfo);
 		writes[6] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCell, &cellStorageBufInfo);
-		writes[7] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexeBufInfo);
+		writes[7] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo);
 		writes[8] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo);
 		writes[9] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo);
 		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo);
 		writes[11] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo);
+		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo);
 
-		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestUintImage, &m_testUintImage.descriptor);
-		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eTestImage, &m_testImage.descriptor);
+		// debug images desc
+		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor);
+		writes[14] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor);
+
+		// debug buffers desc
+		VkDescriptorBufferInfo debugUintBufInfo = { m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint32_t) };
+		VkDescriptorBufferInfo debugFloatBufInfo = { m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float) };
+		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
+		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}
@@ -331,7 +366,100 @@ void EndPerfMarker(VkCommandBuffer commandBuffer) {
 	vkCmdEndDebugUtilsLabelEXT(commandBuffer);
 }
 
+// Floor of log2 of x
+inline int ilog2(int x) {
+	int lg = 0;
+	while (x >>= 1) {
+		++lg;
+	}
+	return lg;
+}
+
+// Ceiling of log2 of x
+inline int ilog2ceil(int x) {
+	return x == 1 ? 0 : ilog2(x - 1) + 1;
+}
+
 #define GROUP_SIZE 8  // Same group size as in compute shader
+
+// Inclusive scan
+void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf, const int frames)
+{
+	// Iteration of scan
+	uint ilogn = ilog2ceil(m_state.cellCount);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
+	for (int i = 0; i < ilogn; ++i)
+	{
+		m_state.cellScanIte = i;
+		vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
+		vkCmdDispatch(cmdBuf, (m_state.cellCount + (1024 - 1)) / 1024, 1, 1);
+
+		// ���� Pipeline Barrier ȷ����һ��д�������
+		VkBufferMemoryBarrier bufferBarriers[2] = {};
+
+		// Barrier for main buffer
+		bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarriers[0].buffer = m_IndexBuffer[(frames + 1) % 2].buffer;  // �� buffer
+		bufferBarriers[0].offset = 0;
+		bufferBarriers[0].size = VK_WHOLE_SIZE;
+
+		// Barrier for temp buffer
+		bufferBarriers[1] = bufferBarriers[0];
+		bufferBarriers[1].buffer = m_IndexTempBuffer.buffer;  // ��ʱ buffer
+
+		vkCmdPipelineBarrier(
+			cmdBuf,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  // Դ�׶�
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,  // Ŀ��׶�
+			0,                                    // �������־
+			0, nullptr,                           // Memory Barriers
+			2, bufferBarriers,                    // Buffer Barriers
+			0, nullptr                            // Image Barriers
+		);
+	}
+	if (( (ilogn - 1) & 1) == 1)
+	{
+		// Set copy region
+		VkBufferCopy copyRegion = {};
+		copyRegion.srcOffset = 0;          
+		copyRegion.dstOffset = 0;           
+		copyRegion.size = m_CellSize * sizeof(uint);    
+
+		vkCmdCopyBuffer(
+			cmdBuf,  // cmd buffer
+			m_IndexTempBuffer.buffer,      // source buffer
+			m_IndexBuffer[(frames + 1) % 2].buffer,      // destination buffer
+			1,              // number of copy regions
+			&copyRegion     // copy regions
+		);
+
+		// Insert Barrier
+		VkBufferMemoryBarrier bufferBarrier = {};
+		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT; 
+		bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.buffer = m_IndexBuffer[(frames + 1) % 2].buffer;
+		bufferBarrier.offset = 0;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+
+		vkCmdPipelineBarrier(
+			cmdBuf,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			0,
+			0, nullptr,
+			1, &bufferBarrier,
+			0, nullptr
+		);
+	}
+}
+
 void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
 	descSets.push_back(m_descSet[(frames + 1) % 2]);
@@ -340,13 +468,58 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 		static_cast<uint32_t>(descSets.size()), descSets.data(), 0, nullptr);
 
 	// Set buffers to zero
-	VkDeviceSize cellSize = 3200000;
-	VkDeviceSize hashBufferSize = cellSize * sizeof(uint32_t);
+	VkDeviceSize cellSize = m_CellSize;
+	VkDeviceSize hashBufferSize = cellSize * sizeof(uint);
 	vkCmdFillBuffer(cmdBuf, m_CellCounter[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_CheckSumBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_IndexBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_IndexTempBuffer.buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint), 0);
+	vkCmdFillBuffer(cmdBuf, m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float), 0);
+
+	// Insert a barrier
+	VkBufferMemoryBarrier bufferBarriers[4] = {};
+
+	// Barrier for m_CellCounter
+	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	bufferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	bufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufferBarriers[0].buffer = m_CellCounter[(frames + 1) % 2].buffer;
+	bufferBarriers[0].offset = 0;
+	bufferBarriers[0].size = hashBufferSize;
+
+	// Barrier for m_CheckSumBuffer
+	bufferBarriers[1] = bufferBarriers[0];
+	bufferBarriers[1].buffer = m_CheckSumBuffer[(frames + 1) % 2].buffer;
+
+	// Barrier for m_IndexBuffer
+	bufferBarriers[2] = bufferBarriers[0];
+	bufferBarriers[2].buffer = m_IndexBuffer[(frames + 1) % 2].buffer;
+
+	// Barrier for m_IndexTempBuffer
+	bufferBarriers[3] = bufferBarriers[0];
+	bufferBarriers[3].buffer = m_IndexTempBuffer.buffer;
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		3, bufferBarriers,                              // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
 	// Sending the push constant information
 	// TODO
+	// The number of cells(3200000)
 	m_state.cellCount = cellSize;
+
+	// The iteration counter of scan
+	m_state.cellScanIte = 0;
 	m_state.environmentProb = 0.5;
 	m_state.maxBounces = 3;
 	vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
@@ -370,40 +543,19 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	EndPerfMarker(cmdBuf);
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
-	vkCmdDispatch(cmdBuf, (cellSize + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
+	this->cellScan(cmdBuf, frames);
 	EndPerfMarker(cmdBuf);
+
+	//InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan Validate", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellValidationPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
+	//EndPerfMarker(cmdBuf);
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+
 	EndPerfMarker(cmdBuf);
 }
-
-//void reflectTest()
-//{
-//	const size_t arraySize = sizeof(ReflectTypes_comp) / sizeof(ReflectTypes_comp[0]);
-//	std::vector<uint32_t> myVector(ReflectTypes_comp, ReflectTypes_comp + arraySize);
-//
-//	spirv_cross::Compiler comp(myVector);
-//	spirv_cross::ShaderResources resources = comp.get_shader_resources();
-//
-//	for (auto& resource : resources.storage_buffers) {
-//		const auto& type = comp.get_type(resource.base_type_id);
-//		unsigned memberCount = type.member_types.size();
-//
-//		std::cout << "Storage buffer: " << resource.name << std::endl;
-//		for (unsigned i = 0; i < memberCount; ++i) {
-//			const auto& memberType = comp.get_type(type.member_types[i]);
-//			std::string name = comp.get_member_name(type.self, i);
-//			size_t size = comp.get_declared_struct_member_size(type, i);
-//
-//			std::cout << "  Member name: " << name << ", size: " << size << std::endl;
-//		}
-//	}
-//}
-//
-//void WorldRestirRenderer::test()
-//{
-//	reflectTest();
-//}

@@ -71,10 +71,9 @@ void main()
 	HashAppendData data = appendBuffer[idx];
 
 	// If the data is not valid, return
-	if(data.isValid == 0)
-	{
-		return;
-	}
+	if(data.isValid == 0) return;
 
-	// uint baseIdx = 
+	// Get the base index(by cell scan)
+	uint baseIdx = data.cellIdx > 0 ? indexBuffer[data.cellIdx - 1] : 0;
+	cellStorageBuffer[baseIdx + data.inCellIdx] = data.reservoirIdx;
 }
