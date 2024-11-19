@@ -58,11 +58,12 @@ layout(set = S_RESTIR, binding = eReservoirs, scalar)   buffer _Reservoirs { Res
 layout(set = S_RESTIR, binding = eAppend, scalar)   buffer _AppendBuffer { HashAppendData appendBuffer[]; };
 layout(set = S_RESTIR, binding = eFinal, scalar)   buffer _FinalSamples { FinalSample finalSamples[]; };
 layout(set = S_RESTIR, binding = eCell, scalar)   buffer _CellStorageBuffer { uint cellStorageBuffer[]; };
-layout(set = S_RESTIR, binding = eIndex, scalar)   buffer _IndexBuffer { uintStruct indexBuffer[]; };
+layout(set = S_RESTIR, binding = eIndex, scalar)   buffer _IndexBuffer { uint indexBuffer[]; };
 layout(set = S_RESTIR, binding = eCheckSum, scalar)   buffer _CheckSumBuffer { uint checkSumBuffer[]; };
 layout(set = S_RESTIR, binding = eCellCounter, scalar)   buffer _CellCounterBuffer { uint cellCounterBuffer[]; };
 layout(set = S_RESTIR, binding = eInitialSamples, scalar)   buffer _InitialSampleBuffer { InitialSample initialSampleBuffer[]; };
 layout(set = S_RESTIR, binding = eReconnection, scalar)   buffer _ReconnectionDataBuffer { ReconnectionData reconnectionDataBuffer[]; };
+layout(set = S_RESTIR, binding = eIndexTemp, scalar)   buffer _IndexTempBuffer { uint indexTempBuffer[]; };
 
 layout(set = S_RESTIR, binding = eTestUintImage)					uniform uimage2D			testUintImage;
 layout(set = S_RESTIR, binding = eTestImage)					uniform image2D			testImage;

@@ -103,6 +103,7 @@ eCheckSum = 8,
 eCellCounter = 9,
 eInitialSamples = 10,
 eReconnection = 11,
+eIndexTemp = 12,
 eTestUintImage = 15,
 eTestImage = 16
 END_ENUM();

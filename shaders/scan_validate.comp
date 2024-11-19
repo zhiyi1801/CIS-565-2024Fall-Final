@@ -41,40 +41,8 @@ void main()
 	{
 		return;
 	}
-
-	if (idx >= uint(1 << rtxState.cellScanIte))
-    {
-		if(rtxState.cellScanIte == 0)
-		{
-			indexBuffer[idx] = cellCounterBuffer[idx - uint(1 << rtxState.cellScanIte)] + cellCounterBuffer[idx];
-		}
-		else if((rtxState.cellScanIte & 1) == 1)
-		{
-			indexTempBuffer[idx] = indexBuffer[idx - uint(1 << rtxState.cellScanIte)] + indexBuffer[idx];
-		}
-		else if((rtxState.cellScanIte & 1)== 0)
-		{
-			indexBuffer[idx] = indexTempBuffer[idx - uint(1 << rtxState.cellScanIte)] + indexTempBuffer[idx];
-		}
-    }
-    else
-    {
-		if(rtxState.cellScanIte == 0)
-		{
-			indexBuffer[idx] = cellCounterBuffer[idx];
-		}
-		else if((rtxState.cellScanIte & 1) == 1)
-		{
-			indexTempBuffer[idx] = indexBuffer[idx];
-		}
-		else if((rtxState.cellScanIte & 1) == 0)
-		{
-			indexBuffer[idx] = indexTempBuffer[idx];
-		}
-    }
-
-
-	// indexBuffer[idx].value = cellCounterBuffer[idx];
-
-	// indexBuffer[idx] = idx;
+	if(idx == 0)
+	{
+		
+	}
 }

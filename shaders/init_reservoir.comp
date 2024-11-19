@@ -235,7 +235,7 @@ void main()
 
   // For Debug
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
-  imageStore(testUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
+  imageStore(testUintImage, imageCoords, uvec4(rtxState.size.x, rtxState.size.y, 0, 1));
   //imageStore(testImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
   float cellIdxF = float(data.cellIdx % 256);
   imageStore(testImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));

@@ -28,7 +28,7 @@ public:
 	void setRecompile(bool recompile) { m_Recompile = recompile; }
 	void setStateChanged(bool stateChanged) { m_StateChanged = stateChanged; }
 
-	void cellScan(const VkCommandBuffer& cmdBuf);
+	void cellScan(const VkCommandBuffer& cmdBuf, const int frames);
 
 private:
 	nvvk::ResourceAllocator* m_pAlloc{ nullptr };  // Allocator for buffer, images, acceleration structures
@@ -74,4 +74,6 @@ private:
 	VkPipeline m_InitialReservoirPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_BuildHashGridPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_ScanCellPipeline{ VK_NULL_HANDLE };
+
+	VkDeviceSize m_CellSize;
 };
