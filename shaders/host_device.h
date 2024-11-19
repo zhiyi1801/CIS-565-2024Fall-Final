@@ -50,7 +50,7 @@ using uint  = unsigned int;
 #define END_ENUM()
 #endif
 
-const uint cellSizeNoHash = 10000;
+const uint cellSizeNoHash = 100;
 
 // Sets
 START_ENUM(SetBindings)

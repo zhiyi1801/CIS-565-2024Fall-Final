@@ -23,6 +23,7 @@
 #include "autogen/build_hash_grid.comp.h"
 #include "autogen/scan_cell.comp.h"
 #include "autogen/scan_validate.comp.h"
+#include "autogen/spatial_temporal_resampling.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -92,6 +93,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 
 	m_ScanCellValidationPipeline = createComputePipeline(m_device, createInfo, scan_validate_comp, sizeof(scan_validate_comp));
 	m_debug.setObjectName(m_ScanCellPipeline, "Scan Cell Validate");
+
+	m_STResamplePipeline = createComputePipeline(m_device, createInfo, spatial_temporal_resampling_comp, sizeof(spatial_temporal_resampling_comp));
+	m_debug.setObjectName(m_ScanCellPipeline, "Spatial Temporal Reuse");
 
 	timer.print();
 }
@@ -165,6 +169,7 @@ void WorldRestirRenderer::destroy()
 	destroyPipeline(m_BuildHashGridPipeline);
 	destroyPipeline(m_ScanCellPipeline);
 	destroyPipeline(m_ScanCellValidationPipeline);
+	destroyPipeline(m_STResamplePipeline);
 
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	m_pipelineLayout = VK_NULL_HANDLE;
@@ -200,7 +205,7 @@ void WorldRestirRenderer::createBuffer()
 	for (int i = 0; i < 2; ++i)
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		m_CellStorage[i] = m_pAlloc->createBuffer(elementCount * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		m_CellStorage[i] = m_pAlloc->createBuffer(1000 * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -315,7 +320,7 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo initialSampleBufInfo = { m_InitialSamples.buffer, 0, elementCount * sizeof(InitialSample) };
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
-		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
+		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, 1000 * sizeof(uint) };
 		VkDescriptorBufferInfo indexBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo indexTempBufInfo = { m_IndexTempBuffer.buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo checkSumBufInfo = { m_CheckSumBuffer[i].buffer, 0, hashBufferSize };
@@ -394,7 +399,7 @@ void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf, const int fram
 		vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
 		vkCmdDispatch(cmdBuf, (m_state.cellCount + (1024 - 1)) / 1024, 1, 1);
 
-		// ���� Pipeline Barrier ȷ����һ��д�������
+		// Insert Pipeline Barrier
 		VkBufferMemoryBarrier bufferBarriers[2] = {};
 
 		// Barrier for main buffer
@@ -556,6 +561,10 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
+	InsertPerfMarker(cmdBuf, "Compute Shader: Spatial Temporal Resample", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_STResamplePipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
 }
