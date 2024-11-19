@@ -175,12 +175,12 @@ void WorldRestirRenderer::createBuffer()
 
 	VkDeviceSize reseviorCount = 2 * elementCount;
 
-	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
+	VkDeviceSize hashBufferSize = 3200 * sizeof(uint32_t);
 	for (int i = 0; i < 2; ++i)
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellStorage[i] = m_pAlloc->createBuffer(elementCount * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
@@ -278,7 +278,7 @@ void WorldRestirRenderer::updateDescriptorSet()
 	std::array<VkWriteDescriptorSet, 14> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
-	VkDeviceSize hashBufferSize = 3200000 * sizeof(uint32_t);
+	VkDeviceSize hashBufferSize = 3200 * sizeof(uint32_t);
 	VkDeviceSize reseviorCount = 2 * elementCount;
 
 	for (int i = 0; i < 2; i++) {
@@ -290,7 +290,7 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
 		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
-		VkDescriptorBufferInfo indexeBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
+		VkDescriptorBufferInfo indexeBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize * 4};
 		VkDescriptorBufferInfo checkSumBufInfo = { m_CheckSumBuffer[i].buffer, 0, hashBufferSize };
 		VkDescriptorBufferInfo cellCounterBufInfo = { m_CellCounter[i].buffer, 0, hashBufferSize };
 
@@ -352,12 +352,12 @@ void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf)
 {
 	// Iteration of scan
 	uint ilogn = ilog2ceil(m_state.cellCount);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
 	for (int i = 0; i < ilogn; ++i)
 	{
 		m_state.cellScanIte = i;
 		vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RtxState), &m_state);
-		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
-		vkCmdDispatch(cmdBuf, (m_state.cellCount + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+		vkCmdDispatch(cmdBuf, (m_state.cellCount + (1024 - 1)) / 1024, 1, 1);
 	}
 }
 
@@ -369,9 +369,44 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 		static_cast<uint32_t>(descSets.size()), descSets.data(), 0, nullptr);
 
 	// Set buffers to zero
-	VkDeviceSize cellSize = 3200000;
+	VkDeviceSize cellSize = 3200;
 	VkDeviceSize hashBufferSize = cellSize * sizeof(uint32_t);
 	vkCmdFillBuffer(cmdBuf, m_CellCounter[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_CheckSumBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
+	vkCmdFillBuffer(cmdBuf, m_IndexBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize * 4, 0);
+
+	// Insert a barrier
+	VkBufferMemoryBarrier bufferBarriers[3] = {};
+
+	// Barrier for m_CellCounter
+	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	bufferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	bufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufferBarriers[0].buffer = m_CellCounter[(frames + 1) % 2].buffer;
+	bufferBarriers[0].offset = 0;
+	bufferBarriers[0].size = hashBufferSize;
+
+	// Barrier for m_CheckSumBuffer
+	bufferBarriers[1] = bufferBarriers[0];
+	bufferBarriers[1].buffer = m_CheckSumBuffer[(frames + 1) % 2].buffer;
+
+	// Barrier for m_IndexBuffer
+	bufferBarriers[2] = bufferBarriers[0];
+	bufferBarriers[2].buffer = m_IndexBuffer[(frames + 1) % 2].buffer;
+	bufferBarriers[2].size = hashBufferSize * 4;
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		3, bufferBarriers,                              // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
 	// Sending the push constant information
 	// TODO
@@ -403,8 +438,9 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	EndPerfMarker(cmdBuf);
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
-	vkCmdDispatch(cmdBuf, (cellSize + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (GROUP_SIZE - 1)) / GROUP_SIZE, 1, 1);
+	this->cellScan(cmdBuf);
 	EndPerfMarker(cmdBuf);
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);

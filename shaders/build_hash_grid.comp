@@ -74,6 +74,6 @@ void main()
 	if(data.isValid == 0) return;
 
 	float tmp = float(indexBuffer[idx]);
-	imageStore(resultImage, imageCoords, vec4(vec3(tmp), 1.f));
+	// imageStore(resultImage, imageCoords, vec4(vec3(tmp), 1.f));
 	// uint baseIdx = 
 }

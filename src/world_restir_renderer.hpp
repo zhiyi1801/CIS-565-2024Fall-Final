@@ -50,6 +50,7 @@ private:
 	nvvk::Buffer m_FinalSample;
 	nvvk::Buffer m_InitialSamples;
 	nvvk::Buffer m_ReconnectionData;
+	nvvk::Buffer m_IndexTempBuffer;
 	std::array<nvvk::Buffer, 2> m_Reservoirs;	/// store for both temporal and spatial reservoir
 	std::array<nvvk::Buffer, 2> m_CellStorage;
 	std::array<nvvk::Buffer, 2> m_IndexBuffer;

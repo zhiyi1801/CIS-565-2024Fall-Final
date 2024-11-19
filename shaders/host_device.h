@@ -516,4 +516,10 @@ struct GIParameter
 	float minCellSize;
 	vec3 _pad;
 };
+
+struct uintStruct
+{
+	uint value;
+	vec3 padding;
+};
 #endif  // COMMON_HOST_DEVICE

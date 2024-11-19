@@ -32,29 +32,33 @@ layout(push_constant) uniform _RtxState
 
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
-layout(local_size_x = 8) in;
+layout(local_size_x = 1024) in;
 
 void main()
 {
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
-	if (idx >= rtxState.cellCount) 
+	if (idx >= rtxState.cellCount - 1) 
 	{
 		return;
 	}
 
 	if (idx >= uint(1 << rtxState.cellScanIte))
     {
-        indexBuffer[idx + 1] = cellCounterBuffer[idx - uint(1 << rtxState.cellScanIte)] + cellCounterBuffer[idx];
+        indexBuffer[idx + 1].value = cellCounterBuffer[idx - uint(1 << rtxState.cellScanIte)] + cellCounterBuffer[idx];
+		// indexBuffer[0] = 0;
     }
     else
     {
-        indexBuffer[idx + 1] = cellCounterBuffer[idx];
+        indexBuffer[idx + 1].value = cellCounterBuffer[idx];
+		// indexBuffer[0] = 0;
     }
 
 	if(idx == 0)
 	{
-		indexBuffer[0] = 0;
+		indexBuffer[0].value = 0;
 	}
+
+	// indexBuffer[idx].value = cellCounterBuffer[idx];
 
 	// indexBuffer[idx] = idx;
 }

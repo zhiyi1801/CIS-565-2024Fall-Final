@@ -157,21 +157,21 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 
   // Add validation Layer
-  std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-  if (checkValidationLayerSupport(validationLayers)) {
-      contextInfo.addInstanceLayer(validationLayers[0]);
-  }
-  else {
-      std::cerr << "Validation layer not available!" << std::endl;
-  }
+  //std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+  //if (checkValidationLayerSupport(validationLayers)) {
+  //    contextInfo.addInstanceLayer(validationLayers[0]);
+  //}
+  //else {
+  //    std::cerr << "Validation layer not available!" << std::endl;
+  //}
 
-  // Call Back
-  VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
-  debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-  debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
-  debugCreateInfo.pfnUserCallback = debugCallback;
-  contextInfo.instanceCreateInfoExt = &debugCreateInfo;
+  //// Call Back
+  //VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
+  //debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  //debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  //debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+  //debugCreateInfo.pfnUserCallback = debugCallback;
+  //contextInfo.instanceCreateInfoExt = &debugCreateInfo;
 
   // Extra queues for parallel load/build
   contextInfo.addRequestedQueue(contextInfo.defaultQueueGCT, 1, 1.0f);  // Loading scene - mipmap generation
