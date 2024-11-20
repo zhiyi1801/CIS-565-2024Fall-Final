@@ -31,6 +31,28 @@ layout(push_constant) uniform _RtxState
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+void StResample(ivec2 imageCoords)
+{
+	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+
+	// Get reconnection data of this pixel
+	ReconnectionData rcData = reconnectionDataBuffer[idx];
+
+	// If the pixel has no reconnection data, return
+	if(rcData.preRcVertexHitInfo == vec4(0))
+	{
+		// imageStore(resultImage, imageCoords, vec4(0.0f, 0.0f, 0.0f, 1.f));
+		return;
+	}
+	// vec3 albedo = unpackUnorm4x8(rcData.preRcVertexHitInfo.w).rgb;
+	// imageStore(resultImage, imageCoords, vec4(albedo, 1.f));
+	
+	// Get the initial sample of the pixel
+	Reservoir initialSample = initialReserviors[idx];
+
+
+}
+
 //
 //--------------------------------------------------------------------------------------------------
 //
@@ -45,9 +67,9 @@ void main()
 	// Check if the pixel is outside the image
 	if(imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
 	{
-	return;
+		return;
 	}
 
-	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
-	imageStore(resultImage, imageCoords, vec4(0.0f, 1.0f, 1.0f, 1.f));
+	StResample(imageCoords);
+	return;
 }

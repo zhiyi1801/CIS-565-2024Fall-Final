@@ -278,7 +278,8 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::eCurrentGbuffer, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
 
 	m_bind.addBinding({ ReSTIRBindings::eInitialReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
-	m_bind.addBinding({ ReSTIRBindings::eReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eCurrentReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::ePrevReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eAppend, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eFinal, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCell, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
@@ -306,7 +307,7 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 17> writes;
+	std::array<VkWriteDescriptorSet, 18> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
@@ -314,7 +315,8 @@ void WorldRestirRenderer::updateDescriptorSet()
 
 	for (int i = 0; i < 2; i++) {
 		VkDescriptorBufferInfo initialResvervoirBufInfo = { m_Reservoirs[i].buffer, 0, elementCount * sizeof(Reservoir) };
-		VkDescriptorBufferInfo reservoirBufInfo = { m_Reservoirs[i].buffer, 0, reseviorCount * sizeof(Reservoir)};
+		VkDescriptorBufferInfo currentReservoirBufInfo = { m_Reservoirs[i].buffer, 0, reseviorCount * sizeof(Reservoir)};
+		VkDescriptorBufferInfo prevReservoirBufInfo = { m_Reservoirs[(i + 1) % 2].buffer, 0, reseviorCount * sizeof(Reservoir)};
 		VkDescriptorBufferInfo appendBufInfo = { m_AppendBuffer.buffer, 0, elementCount * sizeof(HashAppendData) };
 		VkDescriptorBufferInfo finalSampleBufInfo = { m_FinalSample.buffer, 0, elementCount * sizeof(FinalSample) };
 		VkDescriptorBufferInfo initialSampleBufInfo = { m_InitialSamples.buffer, 0, elementCount * sizeof(InitialSample) };
@@ -330,26 +332,27 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes[1] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentGbuffer, &m_gbuffer[!i].descriptor);
 
 		writes[2] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialReservoirs, &initialResvervoirBufInfo);
-		writes[3] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReservoirs, &reservoirBufInfo);
-		writes[4] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAppend, &appendBufInfo);
-		writes[5] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eFinal, &finalSampleBufInfo);
-		writes[6] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCell, &cellStorageBufInfo);
-		writes[7] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo);
-		writes[8] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo);
-		writes[9] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo);
-		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo);
-		writes[11] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo);
-		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo);
+		writes[3] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentReservoirs, &currentReservoirBufInfo);
+		writes[4] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevReservoirs, &prevReservoirBufInfo);
+		writes[5] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAppend, &appendBufInfo);
+		writes[6] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eFinal, &finalSampleBufInfo);
+		writes[7] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCell, &cellStorageBufInfo);
+		writes[8] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo);
+		writes[9] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo);
+		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo);
+		writes[11] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo);
+		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo);
+		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo);
 
 		// debug images desc
-		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor);
-		writes[14] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor);
+		writes[14] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor);
+		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor);
 
 		// debug buffers desc
 		VkDescriptorBufferInfo debugUintBufInfo = { m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint32_t) };
 		VkDescriptorBufferInfo debugFloatBufInfo = { m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float) };
-		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
-		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
+		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
+		writes[17] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}

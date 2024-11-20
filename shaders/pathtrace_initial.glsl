@@ -556,6 +556,9 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
                 // Record the face normal of the prev vertex
                 pathState.preRcVertexNorm = state.normal;
+
+				// Record the pdf from the prev vertex to the reconnect vertex
+				pathState.pdf = samplePdf;
             }
 
             // evaluate the bsdf * cos(theta) / pdf
@@ -680,6 +683,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     initialSampleBuffer[idx].rcVertexNorm = pathState.rcVertexNorm;
     initialSampleBuffer[idx].preRcVertexPos = pathState.preRcVertexPos;
     initialSampleBuffer[idx].preRcVertexNorm = pathState.preRcVertexNorm;
+	initialSampleBuffer[idx].pdf = pathState.pdf;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));

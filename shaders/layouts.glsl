@@ -54,7 +54,8 @@ layout(set = S_RESTIR, binding = eLastGbuffer)       uniform readonly uimage2D l
 layout(set = S_RESTIR, binding = eCurrentGbuffer)       uniform uimage2D thisGbuffer;
 
 layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
-layout(set = S_RESTIR, binding = eReservoirs, scalar)   buffer _Reservoirs { Reservoir reserviors[]; };
+layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReserviors[]; };
+layout(set = S_RESTIR, binding = ePrevReservoirs, scalar)   buffer _PrevReservoirs { Reservoir prevReserviors[]; };
 layout(set = S_RESTIR, binding = eAppend, scalar)   buffer _AppendBuffer { HashAppendData appendBuffer[]; };
 layout(set = S_RESTIR, binding = eFinal, scalar)   buffer _FinalSamples { FinalSample finalSamples[]; };
 layout(set = S_RESTIR, binding = eCell, scalar)   buffer _CellStorageBuffer { uint cellStorageBuffer[]; };
