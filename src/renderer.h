@@ -24,6 +24,7 @@
 
 #include "shaders/host_device.h"
 
+#include "ffx_api/vk/ffx_api_vk.hpp"
 // Forward declaration
 class Scene;
 

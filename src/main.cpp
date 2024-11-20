@@ -245,7 +245,7 @@ int main(int argc, char** argv)
     sample.loadScene(nvh::findFile(sceneFile, defaultSearchPaths, true));
     sample.createUniformBuffer();
     sample.createDescriptorSetLayout();
-    sample.createRender(SampleExample::eRtxPipeline);
+    sample.createRender(SampleExample::eReSTIR);
     sample.resetFrame();
     sample.m_busy = false;
   }).detach();
