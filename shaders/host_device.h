@@ -244,8 +244,8 @@ struct RtxState
   vec3 cameraPos;
   float cameraFov;
 
-  uint cellCount;
   vec3 padding1;
+  uint cellCount;
 
   // Camera matrix
   mat4 prevViewMat;
@@ -495,7 +495,6 @@ struct PuncLight // point, spot, or directional light.
 
 	float outerConeCos;
 	float innerConeCos;
-	vec2 padding;
 
 	ImptSampData impSamp;
 };
@@ -524,12 +523,11 @@ struct GIParameter
 	float fov;
 
 	float minCellSize;
-	vec3 _pad;
 };
 
 struct uintStruct
 {
-	uint value;
 	vec3 padding;
+	uint value;
 };
 #endif  // COMMON_HOST_DEVICE

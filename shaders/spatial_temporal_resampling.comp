@@ -82,8 +82,19 @@ void StResample(ivec2 imageCoords)
 	vec4 worldPos = vec4(ray.origin + ray.direction * depth, 1.0f);
 	imageStore(debugImage, imageCoords, worldPos);
 
+	// Camera matrix in the previous fram
+	mat4 prevViewProj = rtxState.prevProjMat * rtxState.prevViewMat;
 
+	// Compute the previous screen space position of the pixel
+	vec4 prevPosView = rtxState.prevViewMat * worldPos;
+	vec4 prevPosClip = prevViewProj * worldPos;
+	vec3 preScreen = prevPosClip.xyz / prevPosClip.w;
+	vec2 preUV = preScreen.xy * vec2(0.5f, -0.5f) + 0.5f;
+	ivec2 preID = ivec2(clamp(preUV * rtxState.size, vec2(0), vec2(rtxState.size - ivec2(1))));
 
+	// Debug
+	vec4 colorValue = vec4(vec2(preID) / vec2(rtxState.size - ivec2(1)), 1.0f, 1.0f);
+	imageStore(resultImage, imageCoords, colorValue);
 
 	// DebugFloatBuffer
 	if(idx == 0)

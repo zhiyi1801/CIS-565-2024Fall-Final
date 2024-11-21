@@ -464,10 +464,14 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
 
   // View and projection matrices
   const auto& view = CameraManip.getMatrix();
-  auto        proj = glm::perspective(glm::radians(CameraManip.getFov()), aspectRatio, clipPlanes.x, clipPlanes.y);
+  auto        proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
 
   m_rtxState.prevViewMat = view;
   m_rtxState.prevProjMat = proj;
+
+  glm::vec4 pos1(1.506f, 7.046f, -15.345f, 1.0f);
+  glm::vec4 t1 = view * pos1;
+  glm::vec4 t2 = proj * t1;
 }
 
 
