@@ -28,6 +28,7 @@ layout(push_constant) uniform _RtxState
 #include "layouts.glsl"
 #include "random.glsl"
 #include "common.glsl"
+#include "random.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -43,6 +44,11 @@ Ray raySpawn(ivec2 coord, ivec2 sizeImage) {
     return Ray(origin.xyz, normalize(direction.xyz));
 }
 
+float Luminance(vec3 color)
+{
+    return dot(color, vec3(0.299f, 0.587f, 0.114f));
+}
+
 void StResample(ivec2 imageCoords)
 {
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
@@ -53,14 +59,14 @@ void StResample(ivec2 imageCoords)
 	// If the pixel has no reconnection data, return
 	if(rcData.preRcVertexHitInfo == vec4(0))
 	{
-		// imageStore(resultImage, imageCoords, vec4(0.0f, 0.0f, 0.0f, 1.f));
+		imageStore(resultImage, imageCoords, vec4(1.0f, 0.0f, 0.0f, 1.f));
 		return;
 	}
 	// vec3 albedo = unpackUnorm4x8(rcData.preRcVertexHitInfo.w).rgb;
 	// imageStore(resultImage, imageCoords, vec4(albedo, 1.f));
 	
 	// Get the initial sample of the pixel
-	Reservoir initialSample = initialReserviors[idx];
+	Reservoir initialResvSample = initialReserviors[idx];
 
 	// Compute the world space position of the pixel
 	const vec2 pixelCenter = vec2(imageCoords) + vec2(0.5f);
@@ -92,9 +98,51 @@ void StResample(ivec2 imageCoords)
 	vec2 preUV = preScreen.xy * vec2(0.5f, -0.5f) + 0.5f;
 	ivec2 preID = ivec2(clamp(preUV * rtxState.size, vec2(0), vec2(rtxState.size - ivec2(1))));
 
+	// Get the previous linear index
+	uint preIdx = rtxState.size.x * preID.y + preID.x;
+
+	// Temporal Check
+	// Check if the prev sample is valid
+	bool isPreValid = (rtxState.frame > 0) && all(greaterThan(preUV, vec2(0.0f))) && all(lessThan(preUV, vec2(1.0f)));
+
+	// Get the previous sample
+	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
+
+	// If the temporal sample is valid, check the geometry
+	if(isPreValid)
+	{
+		// TODO: 0.1, 0.8 are the threshold values
+		isPreValid = (length(temporalPrevReservoir.vPos - initialResvSample.vPos) < 0.1f && dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.8f);
+
+		// Get the prev Camera Pos
+		vec3 prevCamPos = vec3(inverse(rtxState.prevViewMat) * vec4(0,0,0,1));
+
+		// Check the depth
+		float viewDepth = length(rtxState.cameraPos - initialResvSample.vPos);
+		float prevViewDepth = length(prevCamPos - initialResvSample.vPos);
+
+		// a random number to discard temporal sample
+		uint rSeed = tea(idx, rtxState.frame * rtxState.maxSamples);
+		float randNum = rand(rSeed);
+
+		// If the depth has difference and rand less than 0.15, discard the temporal sample
+		if(viewDepth / prevViewDepth < 0.98f && randNum < 0.0f)
+		{
+			isPreValid = false;
+		}
+	}
+
+	// Temporal Reuse
+	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, 30);
+	if(!isPreValid || temporalPrevReservoir.age > 100)
+	{
+		// If the temporal sample is not valid or is too old, reset M
+		temporalPrevReservoir.M = 0;
+	}
+
 	// Debug
 	vec4 colorValue = vec4(vec2(preID) / vec2(rtxState.size - ivec2(1)), 1.0f, 1.0f);
-	imageStore(resultImage, imageCoords, colorValue);
+	imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
 
 	// DebugFloatBuffer
 	if(idx == 0)

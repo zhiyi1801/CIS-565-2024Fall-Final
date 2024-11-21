@@ -314,7 +314,7 @@ void WorldRestirRenderer::updateDescriptorSet()
 	VkDeviceSize reseviorCount = 2 * elementCount;
 
 	for (int i = 0; i < 2; i++) {
-		VkDescriptorBufferInfo initialResvervoirBufInfo = { m_Reservoirs[i].buffer, 0, elementCount * sizeof(Reservoir) };
+		VkDescriptorBufferInfo initialResvervoirBufInfo = { m_InitialReservoir.buffer, 0, elementCount * sizeof(Reservoir) };
 		VkDescriptorBufferInfo currentReservoirBufInfo = { m_Reservoirs[i].buffer, 0, reseviorCount * sizeof(Reservoir)};
 		VkDescriptorBufferInfo prevReservoirBufInfo = { m_Reservoirs[(i + 1) % 2].buffer, 0, reseviorCount * sizeof(Reservoir)};
 		VkDescriptorBufferInfo appendBufInfo = { m_AppendBuffer.buffer, 0, elementCount * sizeof(HashAppendData) };
