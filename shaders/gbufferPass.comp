@@ -63,6 +63,7 @@ ivec2 imageCoords;
 
 uvec4 encodeGeometryInfo(State state, float depth) {
     uvec4 gInfo;
+    // Depth
     gInfo.x = floatBitsToUint(depth);
     gInfo.y = compress_unit_vec(state.normal);
     gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior-1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
@@ -103,8 +104,10 @@ void traceGbuffer(Ray r)
     State state = GetState(prd, r.direction);
     GetMaterialsAndTextures(state, r);
 
-    uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
+    // uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
+    uvec4 gInfo = encodeGeometryInfo(state, length(r.origin - state.position));
     imageStore(thisGbuffer, imageCoords, gInfo);
+    // imageStore(debugImage, imageCoords, vec4(state.position, 1.0f));
 }
 
 //
@@ -125,5 +128,14 @@ void main()
   //prd.seed = initRandom(uvec2(imageRes), gl_GlobalInvocationID.xy, rtxState.frame);
 
   Ray ray = raySpawn(imageCoords, ivec2(imageRes));
+
+  // Debug
+  if(imageCoords.x == 0 && imageCoords.y == 0)
+  {
+    debugFloatBuffer[0] = ray.direction.x;
+    debugFloatBuffer[1] = ray.direction.y;
+    debugFloatBuffer[2] = ray.direction.z;
+  }
+
   traceGbuffer(ray);
 }

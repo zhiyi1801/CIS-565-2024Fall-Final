@@ -454,6 +454,20 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
     auto slot = profiler.timeRecurring("Mipmap", cmdBuf);
     m_offscreen.genMipmap(cmdBuf);
   }
+
+  // Update the camera matrix
+  // Get the aspect ratio
+  const float aspectRatio = m_renderRegion.extent.width / static_cast<float>(m_renderRegion.extent.height);
+
+  // Get the near / far clip plane
+  glm::vec2   clipPlanes = CameraManip.getClipPlanes();
+
+  // View and projection matrices
+  const auto& view = CameraManip.getMatrix();
+  auto        proj = glm::perspective(glm::radians(CameraManip.getFov()), aspectRatio, clipPlanes.x, clipPlanes.y);
+
+  m_rtxState.prevViewMat = view;
+  m_rtxState.prevProjMat = proj;
 }
 
 

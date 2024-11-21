@@ -31,6 +31,18 @@ layout(push_constant) uniform _RtxState
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+Ray raySpawn(ivec2 coord, ivec2 sizeImage) {
+    // Compute sampling position between [-1 .. 1]
+    const vec2 pixelCenter = vec2(coord) + 0.5;
+    const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+    // Compute ray origin and direction
+    vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
+    return Ray(origin.xyz, normalize(direction.xyz));
+}
+
 void StResample(ivec2 imageCoords)
 {
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
@@ -50,7 +62,40 @@ void StResample(ivec2 imageCoords)
 	// Get the initial sample of the pixel
 	Reservoir initialSample = initialReserviors[idx];
 
+	// Compute the world space position of the pixel
+	const vec2 pixelCenter = vec2(imageCoords) + vec2(0.5f);
+    const vec2 inUV = pixelCenter / vec2(rtxState.size.xy);
+    vec2       d = inUV * 2.0 - 1.0;
 
+	// Compute ray direction
+    vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = normalize(sceneCamera.viewInverse * vec4(normalize(target.xyz), 0));
+
+	// Spawwn ray to get origin and direction
+	Ray ray = raySpawn(imageCoords, ivec2(rtxState.size.xy));
+
+	// Get the Depth from the GBuffer
+	float depth = uintBitsToFloat(imageLoad(thisGbuffer, imageCoords).r);
+
+	// Compute the world space position of the pixel
+	vec4 worldPos = vec4(ray.origin + ray.direction * depth, 1.0f);
+	imageStore(debugImage, imageCoords, worldPos);
+
+
+
+
+	// DebugFloatBuffer
+	if(idx == 0)
+	{
+		debugFloatBuffer[6] = rtxState.cameraPos.x;
+		debugFloatBuffer[7] = rtxState.cameraPos.y;
+		debugFloatBuffer[8] = rtxState.cameraPos.z;
+
+		debugFloatBuffer[3] = ray.direction.x;
+		debugFloatBuffer[4] = ray.direction.y;
+		debugFloatBuffer[5] = ray.direction.z;
+	}
 }
 
 //
@@ -69,6 +114,7 @@ void main()
 	{
 		return;
 	}
+
 
 	StResample(imageCoords);
 	return;

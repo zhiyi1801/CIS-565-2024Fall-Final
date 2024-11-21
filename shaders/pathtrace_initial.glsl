@@ -300,7 +300,9 @@ vec3 DebugInfo(in State state) {
 // Depth 32bit, Normal 32bit, Metallic 8bit, Roughness 8bit, IOR 8bit, Transmission 8bit, Albedo 24bit, Hashed Material ID 8bit
 uvec4 encodeGeometryInfo(State state, float depth) {
     uvec4 gInfo;
+    // Depth
     gInfo.x = floatBitsToUint(depth);
+
     gInfo.y = compress_unit_vec(state.normal);
     gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior - 1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
     gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
@@ -366,7 +368,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
         uint cellIndex = pcg32(normprint + pcg32(pcg32(upx + pcg32(upy + pcg32(upz))))) % 100000;
 
 		// for debugging
-        //return vec3(float(cellIndex));
+        //return vec3(float(cellIndex
 
         // Flag shows if it is the reconnect vertex
         bool connectabele = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex == pathState.rcVertexLength);
@@ -558,7 +560,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 pathState.preRcVertexNorm = state.normal;
 
 				// Record the pdf from the prev vertex to the reconnect vertex
-				pathState.pdf = samplePdf;
+                pathState.pdf = samplePdf;
             }
 
             // evaluate the bsdf * cos(theta) / pdf
@@ -623,29 +625,35 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 {
     vec3 pixelColor = vec3(0);
 
-    // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
-    vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
 
-    // Compute sampling position between [-1 .. 1]
-    const vec2 pixelCenter = vec2(imageCoords) + subpixel_jitter;
-    const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
-    vec2       d = inUV * 2.0 - 1.0;
+ //   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
+ //   vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
 
-    // Compute ray origin and direction
-    vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
-    vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
-    vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
+ //   // Compute sampling position between [-1 .. 1]
+ //   const vec2 pixelCenter = vec2(imageCoords) /*+ subpixel_jitter*/;
+ //   const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
+ //   vec2       d = inUV * 2.0 - 1.0;
 
-    // Depth-of-Field
-    vec3  focalPoint = sceneCamera.focalDist * direction.xyz;
-    float cam_r1 = rand(prd.seed) * M_TWO_PI;
-    float cam_r2 = rand(prd.seed) * sceneCamera.aperture;
-    vec4  cam_right = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
-    vec4  cam_up = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
-    vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
-    vec3  finalRayDir = normalize(focalPoint - randomAperturePos);
+ //   // Compute ray origin and direction
+ //   vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
+ //   vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
+ //   vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
 
-    Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
+ //   // Depth-of-Field
+ //   vec3  focalPoint = sceneCamera.focalDist * direction.xyz;
+ //   float cam_r1 = rand(prd.seed) * M_TWO_PI;
+ //   float cam_r2 = rand(prd.seed) * sceneCamera.aperture;
+ //   vec4  cam_right = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
+ //   vec4  cam_up = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
+ //   vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
+ //   vec3  finalRayDir = normalize(focalPoint - randomAperturePos);
+
+	//// Cancle the depth-of-field effect
+	//finalRayDir = normalize(direction.xyz);
+ //   Ray ray = Ray(origin.xyz, finalRayDir);
+ //   // Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
+
+    Ray ray = raySpawn(imageCoords, ivec2(sizeImage));
 
     PathPayLoad pathState;
     pathState.preRcVertexHitInfo = uvec4(0);

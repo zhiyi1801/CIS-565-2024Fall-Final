@@ -470,6 +470,11 @@ void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf, const int fram
 
 void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames)
 {
+	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
+	VkDeviceSize halfScreenSize = (1.0f / 2.0f * m_size.width) * (1.0f / 2.0f * m_size.height);
+
+	VkDeviceSize elementCount = fullScreenSize;
+
 	descSets.push_back(m_descSet[(frames + 1) % 2]);
 	// Preparing for the compute shader
 	vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineLayout, 0,
@@ -484,6 +489,35 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdFillBuffer(cmdBuf, m_IndexTempBuffer.buffer, 0, hashBufferSize, 0);
 	vkCmdFillBuffer(cmdBuf, m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint), 0);
 	vkCmdFillBuffer(cmdBuf, m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float), 0);
+
+	// Clear images
+	{
+		VkClearColorValue clearColor = { {1.0f, 0.0f, 0.0f, 1.0f} };
+		VkImageSubresourceRange range = {};
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		vkCmdClearColorImage(
+			cmdBuf,
+			m_DebugImage.image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			&clearColor,
+			1,
+			&range
+		);
+
+		vkCmdClearColorImage(
+			cmdBuf,
+			m_DebugUintImage.image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			&clearColor,
+			1,
+			&range
+		);
+	}
 
 	// Insert a barrier
 	VkBufferMemoryBarrier bufferBarriers[4] = {};
@@ -549,6 +583,35 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
+
+	// Insert barrier for Initial Reservoir Pass
+	VkBufferMemoryBarrier initialReservoirBufferBarriers[2] = {};
+
+	// Barrier for m_InitialReservoir
+	initialReservoirBufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	initialReservoirBufferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	initialReservoirBufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	initialReservoirBufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirBufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirBufferBarriers[0].buffer = m_InitialReservoir.buffer;
+	initialReservoirBufferBarriers[0].offset = 0;
+	initialReservoirBufferBarriers[0].size = elementCount * sizeof(Reservoir);
+
+	// Barrier for m_AppendBuffer
+	initialReservoirBufferBarriers[1] = bufferBarriers[0];
+	initialReservoirBufferBarriers[1].buffer = m_AppendBuffer.buffer;
+	initialReservoirBufferBarriers[1].size = elementCount * sizeof(HashAppendData);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		2, initialReservoirBufferBarriers,				// Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
 	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
 	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);

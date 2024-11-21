@@ -50,7 +50,7 @@ using uint  = unsigned int;
 #define END_ENUM()
 #endif
 
-const uint cellSizeNoHash = 100;
+const uint cellSizeNoHash = 1000;
 
 // Sets
 START_ENUM(SetBindings)
@@ -246,6 +246,10 @@ struct RtxState
 
   uint cellCount;
   vec3 padding1;
+
+  // Camera matrix
+  mat4 prevViewMat;
+  mat4 prevProjMat;
 };
 
 // Structure used for retrieving the primitive information in the closest hit

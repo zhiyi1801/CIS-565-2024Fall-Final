@@ -35,22 +35,22 @@ layout(push_constant) uniform _RtxState
 //
 //
 // Query or Insert a cell
-int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params)
+int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params, ivec2 imageCoords)
 {
-  // Discretize the position
-  uvec3 cellP = uvec3((pos - params.bboxMin) / cellSize);
+    // Discretize the position
+    uvec3 cellP = uvec3((pos - params.bboxMin) / cellSize);
 
-  // Quantize the normal
-  uint normprint = BinaryNorm(norm);
+    // Quantize the normal
+    uint normprint = BinaryNorm(norm);
 
-  // Get the cell index
-  uint cellIndex = pcg32(normprint + pcg32( uint( cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
+    // Get the cell index
+    uint cellIndex = pcg32(normprint + pcg32( uint( cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
 
-  // Second hash index 
-  uint checkSum = max(jenkinsHash(normprint + jenkinsHash( uint(cellSize+ jenkinsHash(cellP.z + jenkinsHash(cellP.y + jenkinsHash(cellP.x)))) )), 1);
+    // Second hash index 
+    uint checkSum = max(jenkinsHash(normprint + jenkinsHash( uint(cellSize+ jenkinsHash(cellP.z + jenkinsHash(cellP.y + jenkinsHash(cellP.x)))) )), 1);
 
-  for(uint i = 0; i < 32; ++i)
-  {
+    for(uint i = 0; i < 32; ++i)
+    {
     // Linear probing stride 32
     uint idx = cellIndex * 32 + i;
 
@@ -64,11 +64,17 @@ int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params)
 
     if(checkSumPre == 0 || checkSum == checkSumPre)
     {
-      return int(idx);
+        if(i == 31)
+        {
+            // Debug
+            // imageStore(debugUintImage, imageCoords, uvec4(i, idx, cellIndex, 1));
+        }
+        return int(idx);
     }
-  }
-
-  return -1;
+    }
+    // Debug
+    // imageStore(debugUintImage, imageCoords, uvec4(checkSum, 1, cellIndex, 1));
+    return -1;
 }
 
 //
@@ -152,7 +158,7 @@ ivec2 SampleSizzled()
 //--------------------------------------------------------------------------------------------------
 //
 //
-HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParameter params)
+HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParameter params, ivec2 imageCoords)
 {
   HashAppendData data;
 
@@ -165,17 +171,19 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
   {
     // Calculate the cell size and find the cell indexI. 
     float cellSize = CalculateCellSize(pos, rtxState.cameraPos, params);
-    int cellIdx = FindOrInsertCell(pos, norm, cellSize, params);
+    int cellIdx = FindOrInsertCell(pos, norm, cellSize, params, imageCoords);
 
     // Check if the cell is valid
     if(cellIdx != -1)
     {
       uint inCellIdx = invalidInCellIndex;
-
       // Increment the counter and get the inCellIdx
       inCellIdx = atomicAdd(cellCounterBuffer[cellIdx], 1);
-      // DbugUintBuffer0 is used to count the number of valid cells
+
+      // DebugUintBuffer0 is used to count the number of valid cells
       atomicAdd(debugUintBuffer[0], 1);
+
+      // Set Valid flag
       data.isValid = 1;
       data.cellIdx = cellIdx;
       data.inCellIdx = inCellIdx;
@@ -233,7 +241,7 @@ void main()
   Reservoir r = SetGIReservoir(initialSampleBuffer[idx]);
 
   // Build HashAppendData
-  HashAppendData data = BuildHashAppendData(r.vPos, r.vNorm, idx, params);
+  HashAppendData data = BuildHashAppendData(r.vPos, r.vNorm, idx, params, imageCoords);
 
   // For Debug
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
