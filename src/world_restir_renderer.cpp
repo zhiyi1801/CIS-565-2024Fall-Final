@@ -25,6 +25,7 @@
 #include "autogen/scan_validate.comp.h"
 #include "autogen/spatial_temporal_resampling.comp.h"
 #include "autogen//final_sample.comp.h"
+#include "autogen/final_shading.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -100,6 +101,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 
 	m_FinalSamplePipeline = createComputePipeline(m_device, createInfo, final_sample_comp, sizeof(final_sample_comp));
 	m_debug.setObjectName(m_FinalSamplePipeline, "Final Sample");
+
+	m_FinalShadingPipeline = createComputePipeline(m_device, createInfo, final_shading_comp, sizeof(final_shading_comp));
+	m_debug.setObjectName(m_FinalShadingPipeline, "Final Shading");
 
 	timer.print();
 }
@@ -761,4 +765,11 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 		1, finalSamplePassBarriers,				    // Buffer barriers
 		0, nullptr                                      // No image barriers
 	);
+
+	// --------------------------------------------
+	// Final Shading Pass
+	InsertPerfMarker(cmdBuf, "Compute Shader: Final Shading", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalShadingPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 }

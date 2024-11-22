@@ -81,6 +81,7 @@ private:
 	VkPipeline m_ScanCellValidationPipeline{ VK_NULL_HANDLE };
 	VkPipeline m_STResamplePipeline{ VK_NULL_HANDLE };
 	VkPipeline m_FinalSamplePipeline{ VK_NULL_HANDLE };
+	VkPipeline m_FinalShadingPipeline{ VK_NULL_HANDLE };
 
 	VkDeviceSize m_CellSize;
 	VkDeviceSize m_DebugBufferSize;

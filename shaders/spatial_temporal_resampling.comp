@@ -72,7 +72,7 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 	float randomNum = rand(rseed);
 
 	// Return this flag to show if use the second reservoir's sample or not
-	bool isUpdate = randomNum * weightS <= r2Weight;
+	bool isUpdate = (randomNum * weightS <= r2Weight) || weightS == 0;
 
 	// Update the reservoir r1
 	if(isUpdate)

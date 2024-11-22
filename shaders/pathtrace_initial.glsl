@@ -303,7 +303,7 @@ uvec4 encodeGeometryInfo(State state, float depth) {
     // Depth
     gInfo.x = floatBitsToUint(depth);
 
-    gInfo.y = compress_unit_vec(state.normal);
+    gInfo.y = compress_unit_vec(state.ffnormal);
     gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior - 1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
     gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
     gInfo.w += hash8bit(state.matID);
@@ -551,10 +551,13 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 				pathState.preRcVertexPos = state.position;
 
                 // Record the face normal of the prev vertex
-                pathState.preRcVertexNorm = state.normal;
+                pathState.preRcVertexNorm = state.ffnormal;
 
 				// Record the pdf from the prev vertex to the reconnect vertex
                 pathState.pdf = samplePdf;
+
+                // Record the wi on the prev vertex
+                pathState.preRcVertexWi = sampleWi;
             }
 
             // evaluate the bsdf * cos(theta) / pdf
@@ -577,6 +580,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             if (pathState.currentVertexIndex + 1 == pathState.rcVertexLength)
             {
 				pathState.cacheBsdfCosWeight = bsdfCosWeight;
+                // pathState.cacheBsdfCosWeight = sampleBSDF;
             }
 
             throughput *= bsdfCosWeight;
@@ -729,6 +733,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     //}
     // 
 
+    // return pathState.cacheBsdfCosWeight * pathState.pdf;
     return radiance;
     // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;

@@ -29,6 +29,8 @@ layout(push_constant) uniform _RtxState
 #include "random.glsl"
 #include "common.glsl"
 #include "random.glsl"
+#include "compress.glsl"
+#include "pbr_metallicworkflow.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -51,15 +53,41 @@ void main()
 
 	// Compute 1D index
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+	
+	// Compute the color
+	// Get the reconnection data
+	ReconnectionData data = reconnectionDataBuffer[idx];
+	uvec4 hitInfo = data.preRcVertexHitInfo;
 
-	// Get the current sample reservoir
-	Reservoir r = currentReserviors[idx];
+	// If the rc vertex is not valid, return
+	if(hitInfo == vec4(0))
+	{
+		return;
+	}
 
-	// Write the final sample
-	FinalSample s;
+	// Get the final sample
+	FinalSample fSample = finalSamples[idx];
 
-	s.dir = ((r.rcEnv == 1) ? normalize(vec3(unpackSnorm4x8(r.rcEnvDirPacked))) : normalize(r.sPos - r.vPos));
-    s.Li = r.radiance * max(0.f, r.weightF);
+	// Unpack metallic and roughness
+    vec2 metallicRoughness = unpackUnorm4x8(hitInfo.z).xy;
 
-	finalSamples[idx] = s;
+	// Unpack Albedo
+    vec3 albedo = unpackUnorm4x8(hitInfo.w).rgb;
+
+	// Unpack Normal
+	vec3 prevNormal = decompress_unit_vec(hitInfo.y);
+
+	// Compute final color
+	vec3 color = vec3(0.0);
+
+	// Set shading state
+	State state;
+	state.mat.albedo = albedo;
+	state.mat.metallic = metallicRoughness.x;
+	state.mat.roughness = max(metallicRoughness.y, 0.001);
+
+	// Compute BSDF*cos
+	vec3 bsdfCos = metallicWorkflowBSDF(state, prevNormal, data.preRcVertexWo, fSample.dir) * absDot(prevNormal, fSample.dir);
+	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
+	imageStore(debugImage, imageCoords, vec4(color, 1.0f));
 }

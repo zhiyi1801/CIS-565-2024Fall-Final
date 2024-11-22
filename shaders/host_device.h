@@ -464,8 +464,13 @@ struct PathPayLoad
 	vec3 cacheBsdfCosWeight;
 	int padding6;
 
+	// The ouput ray direction on the prev vertex(from the prev vertex)
 	vec3 preRcVertexWo;
 	int validRcPath;
+
+	// The input ray direction on the prev vertex(from the prev vertex)
+	vec3 preRcVertexWi;
+	int padding7;
 };
 
 // Light sampling data
