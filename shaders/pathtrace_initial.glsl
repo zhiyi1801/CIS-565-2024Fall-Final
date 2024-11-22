@@ -590,12 +590,16 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 		// Russian Roulette
         {
 #if RR
+			// If next vertex is the reconnect vertex, do not terminate the path
+            bool nextReconnect = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex + 1 == pathState.rcVertexLength);
             // For Russian-Roulette (minimizing live state)
-            float rrPcont = (depth >= RR_DEPTH) ?
+            float rrPcont = ((depth >= RR_DEPTH) && !nextReconnect) ?
                 min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
                 1.0;
             if (rand(prd.seed) >= rrPcont)
+            {
                 break;                // paths with low throughput that won't contribute
+            }
             throughput /= rrPcont;  // boost the energy of the non-terminated paths
 #endif
         }
@@ -658,6 +662,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.prefixPathRadiance = vec3(0.0f, 0.0f, 0.0f);
     pathState.rcVertexRadiance = vec3(0.0f, 0.0f, 0.0f);
     pathState.rcEnv = 0;
+	pathState.rcEnvDir = vec3(0.0f, 0.0f, 0.0f);
     pathState.cacheBsdfCosWeight = vec3(0);
 
     pathState.rcVertexPos = vec3(0.0f);
@@ -686,6 +691,8 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     initialSampleBuffer[idx].preRcVertexPos = pathState.preRcVertexPos;
     initialSampleBuffer[idx].preRcVertexNorm = pathState.preRcVertexNorm;
 	initialSampleBuffer[idx].pdf = pathState.pdf;
+	initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
+	initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));

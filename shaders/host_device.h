@@ -350,10 +350,10 @@ struct Reservoir
 	uint age; //age the sample  > maxSampleAge will be discard
 
     vec3 sNorm;
-	int padding1;
+	uint rcEnv;
 
     vec3 radiance;
-	int padding2;
+	uint rcEnvDirPacked;
 };
 
 // Final sample structure
@@ -385,19 +385,24 @@ struct InitialSample
 	float pdf;
 
 	// prev vertex world normal
+	// Show if the reconnect vertex hit the environment
 	vec3 preRcVertexNorm;
-	int padding1;
+	int rcEnv;
 
 	// reconnect vertex world position
 	vec3 rcVertexPos;
-	int padding2;
+	int padding1;
 
 	// reconnect vertex world normal
 	vec3 rcVertexNorm;
-	int padding3;
+	int padding2;
 
 	// Accumulate radiance from the reconnect vertex to the final vertex(could be a light or just terminate)
 	vec3 rcVertexLo;
+	int padding3;
+
+	// If rc hit the env, store the env direction
+	vec3 rcEnvDir;
 	int padding4;
 };
 

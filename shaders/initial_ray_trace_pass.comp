@@ -140,6 +140,6 @@ void main()
   }
 
   // Debug
-  imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+  // imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
   // imageStore(debugImage, imageCoords, vec4(pixelColor, 1.f));
 }

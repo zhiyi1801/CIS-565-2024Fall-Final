@@ -105,7 +105,7 @@ void StResample(ivec2 imageCoords)
 	// If the pixel has no reconnection data, return
 	if(rcData.preRcVertexHitInfo == vec4(0))
 	{
-		imageStore(resultImage, imageCoords, vec4(1.0f, 0.0f, 0.0f, 1.f));
+		// imageStore(resultImage, imageCoords, vec4(1.0f, 0.0f, 0.0f, 1.f));
 		return;
 	}
 	// vec3 albedo = unpackUnorm4x8(rcData.preRcVertexHitInfo.w).rgb;
@@ -214,7 +214,7 @@ void StResample(ivec2 imageCoords)
 
 	// Debug
 	vec4 colorValue = vec4(vec2(preID) / vec2(rtxState.size - ivec2(1)), 1.0f, 1.0f);
-	imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
+	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
 
 	// DebugFloatBuffer
 	if(idx == 0)
