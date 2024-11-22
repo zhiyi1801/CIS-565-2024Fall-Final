@@ -187,7 +187,8 @@ void StResample(ivec2 imageCoords)
 		temporalPrevReservoir.M = 0;
 	}
 
-	temporalPrevReservoir.M = 0;
+	// To use 1 sample
+	// temporalPrevReservoir.M = 0;
 
 	// Get the target pdf of the prev reservoir
 	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);
