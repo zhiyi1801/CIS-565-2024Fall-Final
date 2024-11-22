@@ -361,12 +361,6 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
         // Transfer normal to a uint
         uint normprint = BinaryNorm(state.ffnormal);
 
-        // Hash the position and normal
-        uint upx = uint(state.position.x);
-		uint upy = uint(state.position.y);
-		uint upz = uint(state.position.z);
-        uint cellIndex = pcg32(normprint + pcg32(pcg32(upx + pcg32(upy + pcg32(upz))))) % 100000;
-
 		// for debugging
         //return vec3(float(cellIndex
 

@@ -344,7 +344,7 @@ struct Reservoir
 	uint M;
 
     vec3 vNorm;
-	float weightF; //the weight use for compute final illuminance W = Weight / (Mount * pdf)
+	float weightF; //the weight use for compute final illuminance weightF = Weight_s / (M * targetpdf)
 
     vec3 sPos;
 	uint age; //age the sample  > maxSampleAge will be discard

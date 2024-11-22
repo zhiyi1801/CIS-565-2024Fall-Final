@@ -49,9 +49,55 @@ float Luminance(vec3 color)
     return dot(color, vec3(0.299f, 0.587f, 0.114f));
 }
 
+// TODO: For now just return the luminance as the weight function(unnormalized target function)
+float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos)
+{
+	// TODO: BSDFcos * Li
+	return Luminance(Li);
+}
+
+// Merge two reservoirs(merge r2 into r1 r1 <- r2)
+bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2TargetPdf, inout float weightS)
+{
+	// Compute the weight of the second reservoir
+	float r2Weight = r2.M * max(0.f, r2.weightF) * r2TargetPdf;
+
+	// Compute the weight sum
+	weightS += r2Weight;
+
+	// Update sample count M
+	r1.M += r2.M;
+
+	// Get a random number
+	float randomNum = rand(rseed);
+
+	// Return this flag to show if use the second reservoir's sample or not
+	bool isUpdate = randomNum * weightS <= r2Weight;
+
+	// Update the reservoir r1
+	if(isUpdate)
+	{
+		r1.sPos = r2.sPos;
+		r1.sNorm = r2.sNorm;
+		r1.radiance = r2.radiance;
+		r1.age = r2.age;
+	}
+
+	return isUpdate;
+}
+
+void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
+{
+	float weight = targetPdf * resv.M;
+	resv.weightF = weight > 0 ? weightSum / weight : 0;
+}
+
 void StResample(ivec2 imageCoords)
 {
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+
+	// Create a random seed
+	uint rSeed = tea(idx, rtxState.frame * rtxState.maxSamples);
 
 	// Get reconnection data of this pixel
 	ReconnectionData rcData = reconnectionDataBuffer[idx];
@@ -112,7 +158,7 @@ void StResample(ivec2 imageCoords)
 	if(isPreValid)
 	{
 		// TODO: 0.1, 0.8 are the threshold values
-		isPreValid = (length(temporalPrevReservoir.vPos - initialResvSample.vPos) < 0.1f && dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.8f);
+		isPreValid = (length(temporalPrevReservoir.vPos - initialResvSample.vPos) < 0.1f && dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.9f);
 
 		// Get the prev Camera Pos
 		vec3 prevCamPos = vec3(inverse(rtxState.prevViewMat) * vec4(0,0,0,1));
@@ -122,7 +168,6 @@ void StResample(ivec2 imageCoords)
 		float prevViewDepth = length(prevCamPos - initialResvSample.vPos);
 
 		// a random number to discard temporal sample
-		uint rSeed = tea(idx, rtxState.frame * rtxState.maxSamples);
 		float randNum = rand(rSeed);
 
 		// If the depth has difference and rand less than 0.15, discard the temporal sample
@@ -139,6 +184,33 @@ void StResample(ivec2 imageCoords)
 		// If the temporal sample is not valid or is too old, reset M
 		temporalPrevReservoir.M = 0;
 	}
+
+	// Get the target pdf of the prev reservoir
+	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);
+
+	// Compute the weight sum(weightF = Weight_s / (M * targetpdf))
+	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.weightF);
+
+	// Get the target pdf of the current reservoir
+	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos);
+
+	// merge initialResvSample and temporalPrevReservoir
+	bool isUpdate = MergeReservoir(rSeed, temporalPrevReservoir, initialResvSample, tpCurrent, wSum);
+
+	// Compute new target pdf
+	float tpNew = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);
+
+	// Compute final weight
+	ComputeFinalWeight(temporalPrevReservoir, tpNew, wSum);
+	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, 30);
+	temporalPrevReservoir.age++;
+
+	// Set current vPos and vNormal
+	temporalPrevReservoir.vPos = initialResvSample.vPos;
+    temporalPrevReservoir.vNorm = initialResvSample.vNorm;
+
+	// Write the temporal reservoir to the current buffer
+	currentReserviors[preIdx] = temporalPrevReservoir;
 
 	// Debug
 	vec4 colorValue = vec4(vec2(preID) / vec2(rtxState.size - ivec2(1)), 1.0f, 1.0f);
