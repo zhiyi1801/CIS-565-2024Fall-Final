@@ -205,7 +205,7 @@ void WorldRestirRenderer::createBuffer()
 	for (int i = 0; i < 2; ++i)
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		m_CellStorage[i] = m_pAlloc->createBuffer(1000 * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		m_CellStorage[i] = m_pAlloc->createBuffer(elementCount * sizeof(uint), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_IndexBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -322,7 +322,7 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo initialSampleBufInfo = { m_InitialSamples.buffer, 0, elementCount * sizeof(InitialSample) };
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
-		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, 1000 * sizeof(uint) };
+		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
 		VkDescriptorBufferInfo indexBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo indexTempBufInfo = { m_IndexTempBuffer.buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo checkSumBufInfo = { m_CheckSumBuffer[i].buffer, 0, hashBufferSize };
@@ -474,6 +474,7 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	VkDeviceSize halfScreenSize = (1.0f / 2.0f * m_size.width) * (1.0f / 2.0f * m_size.height);
 
 	VkDeviceSize elementCount = fullScreenSize;
+	VkDeviceSize reseviorCount = 2 * elementCount;
 
 	descSets.push_back(m_descSet[(frames + 1) % 2]);
 	// Preparing for the compute shader
@@ -574,33 +575,31 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
 
+	// Insert barrier for GBuffer Pass
+
+
 	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Sample", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialSamplePipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
 
-	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
-	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	EndPerfMarker(cmdBuf);
+	// Insert barrier for Initial Sample Pass
+	VkBufferMemoryBarrier initialSamplePassBarriers[2] = {};
 
-	// Insert barrier for Initial Reservoir Pass
-	VkBufferMemoryBarrier initialReservoirBufferBarriers[2] = {};
+	// Barrier for m_InitialSamples
+	initialSamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	initialSamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	initialSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	initialSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialSamplePassBarriers[0].buffer = m_InitialSamples.buffer;
+	initialSamplePassBarriers[0].offset = 0;
+	initialSamplePassBarriers[0].size = elementCount * sizeof(InitialSample);
 
-	// Barrier for m_InitialReservoir
-	initialReservoirBufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	initialReservoirBufferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	initialReservoirBufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	initialReservoirBufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	initialReservoirBufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	initialReservoirBufferBarriers[0].buffer = m_InitialReservoir.buffer;
-	initialReservoirBufferBarriers[0].offset = 0;
-	initialReservoirBufferBarriers[0].size = elementCount * sizeof(Reservoir);
-
-	// Barrier for m_AppendBuffer
-	initialReservoirBufferBarriers[1] = bufferBarriers[0];
-	initialReservoirBufferBarriers[1].buffer = m_AppendBuffer.buffer;
-	initialReservoirBufferBarriers[1].size = elementCount * sizeof(HashAppendData);
+	// Barrier for m_ReconnectionData
+	initialSamplePassBarriers[1] = bufferBarriers[0];
+	initialSamplePassBarriers[1].buffer = m_ReconnectionData.buffer;
+	initialSamplePassBarriers[1].size = elementCount * sizeof(ReconnectionData);
 
 	// Apply the pipeline barrier
 	vkCmdPipelineBarrier(
@@ -609,7 +608,41 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
 		0,                                              // No flags
 		0, nullptr,                                     // No memory barriers
-		2, initialReservoirBufferBarriers,				// Buffer barriers
+		2, initialSamplePassBarriers,				// Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
+
+	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
+
+	// Insert barrier for Initial Reservoir Pass
+	VkBufferMemoryBarrier initialReservoirPassBarriers[2] = {};
+
+	// Barrier for m_InitialReservoir
+	initialReservoirPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	initialReservoirPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	initialReservoirPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	initialReservoirPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirPassBarriers[0].buffer = m_InitialReservoir.buffer;
+	initialReservoirPassBarriers[0].offset = 0;
+	initialReservoirPassBarriers[0].size = elementCount * sizeof(Reservoir);
+
+	// Barrier for m_AppendBuffer
+	initialReservoirPassBarriers[1] = bufferBarriers[0];
+	initialReservoirPassBarriers[1].buffer = m_AppendBuffer.buffer;
+	initialReservoirPassBarriers[1].size = elementCount * sizeof(HashAppendData);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		2, initialReservoirPassBarriers,				// Buffer barriers
 		0, nullptr                                      // No image barriers
 	);
 
@@ -629,8 +662,56 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
 
+	// Insert barrier for Build Hash Grid Pass
+	VkBufferMemoryBarrier buildHashGridPassBarriers[1] = {};
+
+	// Barrier for m_CellStorage
+	buildHashGridPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	buildHashGridPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	buildHashGridPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	buildHashGridPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	buildHashGridPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	buildHashGridPassBarriers[0].buffer = m_CellStorage[(frames + 1) % 2].buffer;
+	buildHashGridPassBarriers[0].offset = 0;
+	buildHashGridPassBarriers[0].size = elementCount * sizeof(uint);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		1, buildHashGridPassBarriers,				    // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
+
 	InsertPerfMarker(cmdBuf, "Compute Shader: Spatial Temporal Resample", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_STResamplePipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 	EndPerfMarker(cmdBuf);
+
+	// Insert barrier for Spatial Temporal Resample Pass
+	VkBufferMemoryBarrier spatialTemporalResamplePassBarriers[1] = {};
+
+	// Barrier for m_currentReservoirs
+	spatialTemporalResamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	spatialTemporalResamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	spatialTemporalResamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	spatialTemporalResamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	spatialTemporalResamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	spatialTemporalResamplePassBarriers[0].buffer = m_Reservoirs[(frames + 1) % 2].buffer;
+	spatialTemporalResamplePassBarriers[0].offset = 0;
+	spatialTemporalResamplePassBarriers[0].size = reseviorCount * sizeof(Reservoir);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		1, spatialTemporalResamplePassBarriers,				    // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 }

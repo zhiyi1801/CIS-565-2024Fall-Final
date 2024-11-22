@@ -81,6 +81,8 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 		r1.sNorm = r2.sNorm;
 		r1.radiance = r2.radiance;
 		r1.age = r2.age;
+		r1.rcEnv = r2.rcEnv;
+		r1.rcEnvDirPacked = r2.rcEnvDirPacked;
 	}
 
 	return isUpdate;
@@ -184,6 +186,8 @@ void StResample(ivec2 imageCoords)
 		// If the temporal sample is not valid or is too old, reset M
 		temporalPrevReservoir.M = 0;
 	}
+
+	temporalPrevReservoir.M = 0;
 
 	// Get the target pdf of the prev reservoir
 	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);

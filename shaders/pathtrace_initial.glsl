@@ -663,6 +663,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.rcVertexRadiance = vec3(0.0f, 0.0f, 0.0f);
     pathState.rcEnv = 0;
 	pathState.rcEnvDir = vec3(0.0f, 0.0f, 0.0f);
+    pathState.pdf = 0.0f;
     pathState.cacheBsdfCosWeight = vec3(0);
 
     pathState.rcVertexPos = vec3(0.0f);
