@@ -29,6 +29,8 @@ layout(push_constant) uniform _RtxState
 #include "random.glsl"
 #include "common.glsl"
 #include "random.glsl"
+#include "compress.glsl"
+#include "pbr_metallicworkflow.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -49,11 +51,46 @@ float Luminance(vec3 color)
     return dot(color, vec3(0.299f, 0.587f, 0.114f));
 }
 
-// TODO: For now just return the luminance as the weight function(unnormalized target function)
+// just return the luminance as the weight function(unnormalized target function)
 float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos)
 {
-	// TODO: BSDFcos * Li
 	return Luminance(Li);
+}
+
+// return BSDF * Li
+float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos, ReconnectionData rcData)
+{
+	// Get the hit info
+	uvec4 hitInfo = rcData.preRcVertexHitInfo;
+
+	// Unpack the hitInfo
+	// Unpack metallic and roughness
+    vec2 metallicRoughness = unpackUnorm4x8(hitInfo.z).xy;
+
+	// Unpack Albedo
+    vec3 albedo = unpackUnorm4x8(hitInfo.w).rgb;
+
+	// Unpack Normal
+	vec3 hitNormal = decompress_unit_vec(hitInfo.y);
+
+	// wi
+	vec3 wi = normalize(sPos - vPos);
+
+	// wo
+	vec3 wo = normalize(rcData.preRcVertexWo);
+
+	// Set shading state
+	State state;
+	state.mat.albedo = albedo;
+	state.mat.metallic = metallicRoughness.x;
+	state.mat.roughness = max(metallicRoughness.y, 0.001);
+
+	// Compute BSDF * cos * Li
+	vec3 radiance = max(metallicWorkflowBSDF(state, hitNormal, wo, wi) 
+					* absDot(hitNormal, wi), 0.1f)
+					* Li; 
+
+	return Luminance(radiance);
 }
 
 // Merge two reservoirs(merge r2 into r1 r1 <- r2)
@@ -134,7 +171,7 @@ void StResample(ivec2 imageCoords)
 
 	// Compute the world space position of the pixel
 	vec4 worldPos = vec4(ray.origin + ray.direction * depth, 1.0f);
-	imageStore(debugImage, imageCoords, worldPos);
+	// imageStore(debugImage, imageCoords, worldPos);
 
 	// Camera matrix in the previous fram
 	mat4 prevViewProj = rtxState.prevProjMat * rtxState.prevViewMat;
@@ -191,19 +228,19 @@ void StResample(ivec2 imageCoords)
 	// temporalPrevReservoir.M = 0;
 
 	// Get the target pdf of the prev reservoir
-	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);
+	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
 
 	// Compute the weight sum(weightF = Weight_s / (M * targetpdf))
 	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.weightF);
 
 	// Get the target pdf of the current reservoir
-	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos);
+	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos, rcData);
 
 	// merge initialResvSample and temporalPrevReservoir
 	bool isUpdate = MergeReservoir(rSeed, temporalPrevReservoir, initialResvSample, tpCurrent, wSum);
 
 	// Compute new target pdf
-	float tpNew = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos);
+	float tpNew = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
 
 	// Compute final weight
 	ComputeFinalWeight(temporalPrevReservoir, tpNew, wSum);
