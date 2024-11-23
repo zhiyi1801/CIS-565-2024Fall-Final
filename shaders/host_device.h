@@ -353,7 +353,10 @@ struct Reservoir
 	uint rcEnv;
 
     vec3 radiance;
-	uint rcEnvDirPacked;
+	uint padding1;
+
+	vec3 rcEnvDir;
+	uint padding2;
 };
 
 // Final sample structure

@@ -132,7 +132,7 @@ Reservoir SetGIReservoir(InitialSample s)
   initialReservoir.age = 0;
 
   initialReservoir.rcEnv = s.rcEnv;
-  initialReservoir.rcEnvDirPacked = packSnorm4x8(vec4(s.rcEnvDir, 0.0f));
+  initialReservoir.rcEnvDir = s.rcEnvDir;
 
   return initialReservoir;
 }

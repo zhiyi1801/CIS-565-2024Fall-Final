@@ -119,7 +119,7 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 		r1.radiance = r2.radiance;
 		r1.age = r2.age;
 		r1.rcEnv = r2.rcEnv;
-		r1.rcEnvDirPacked = r2.rcEnvDirPacked;
+		r1.rcEnvDir = r2.rcEnvDir;
 	}
 
 	return isUpdate;
@@ -152,6 +152,12 @@ void StResample(ivec2 imageCoords)
 	
 	// Get the initial sample of the pixel
 	Reservoir initialResvSample = initialReserviors[idx];
+
+	// If the initial reservoir hit environment
+	if(initialResvSample.rcEnv == 1)
+	{
+		initialResvSample.sPos = initialResvSample.vPos + initialResvSample.rcEnvDir;
+	}
 
 	// Compute the world space position of the pixel
 	const vec2 pixelCenter = vec2(imageCoords) + vec2(0.5f);

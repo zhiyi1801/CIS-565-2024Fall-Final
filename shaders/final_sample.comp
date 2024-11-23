@@ -58,7 +58,7 @@ void main()
 	// Write the final sample
 	FinalSample s;
 
-	s.dir = ((r.rcEnv == 1) ? normalize(vec3(unpackSnorm4x8(r.rcEnvDirPacked))) : normalize(r.sPos - r.vPos));
+	s.dir = ((r.rcEnv == 1) ? normalize(r.rcEnvDir) : normalize(r.sPos - r.vPos));
     s.Li = r.radiance * max(0.f, r.weightF);
 
 	finalSamples[idx] = s;
