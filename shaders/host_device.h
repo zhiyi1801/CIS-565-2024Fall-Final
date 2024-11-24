@@ -55,6 +55,9 @@ using uint  = unsigned int;
 
 const uint cellSizeNoHash = 1000;
 
+const int RayTraceBlockSizeX = 8;
+const int RayTraceBlockSizeY = 8;
+
 // Sets
 START_ENUM(SetBindings)
   S_ACCEL = 0,  // Acceleration structure
@@ -111,10 +114,12 @@ eInitialSamples = 11,
 eReconnection = 12,
 eIndexTemp = 13,
 eMotionVector = 14,
-eDebugUintImage = 15,
-eDebugImage = 16,
-eDebugUintBuffer = 17,
-eDebugFloatBuffer = 18
+ePrevDirectReservoirs = 15,
+eCurrentDirectReservoirs = 16,
+eDebugUintImage = 17,
+eDebugImage = 18,
+eDebugUintBuffer = 19,
+eDebugFloatBuffer = 20
 END_ENUM();
 
 START_ENUM(DebugMode)
@@ -548,4 +553,18 @@ struct uintStruct
 	vec3 padding;
 	uint value;
 };
+
+// ReSTIR DI
+struct LightSample {
+	vec3 Li;
+	vec3 wi;
+	float dist;
+};
+
+struct DirectReservoir {
+	LightSample lightSample;
+	uint M;
+	float weight;
+};
+
 #endif  // COMMON_HOST_DEVICE

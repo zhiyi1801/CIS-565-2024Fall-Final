@@ -46,11 +46,6 @@ Ray raySpawn(ivec2 coord, ivec2 sizeImage) {
     return Ray(origin.xyz, normalize(direction.xyz));
 }
 
-float Luminance(vec3 color)
-{
-    return dot(color, vec3(0.299f, 0.587f, 0.114f));
-}
-
 // just return the luminance as the weight function(unnormalized target function)
 float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos)
 {
@@ -145,21 +140,15 @@ void StResample(ivec2 imageCoords)
 	// If the pixel has no reconnection data, return
 	if(rcData.preRcVertexHitInfo == vec4(0))
 	{
-		// imageStore(resultImage, imageCoords, vec4(1.0f, 0.0f, 0.0f, 1.f));
 		return;
 	}
-	// vec3 albedo = unpackUnorm4x8(rcData.preRcVertexHitInfo.w).rgb;
-	// imageStore(resultImage, imageCoords, vec4(albedo, 1.f));
 	
 	// Get the initial sample of the pixel
 	Reservoir initialResvSample = initialReserviors[idx];
 
 	// If the initial reservoir hit environment
-	vec3 envDir = vec3(0.0f);
 	if(initialResvSample.rcEnv == 1)
 	{
-		// Get the environment direction
-		envDir = normalize(initialResvSample.rcEnvDir);
 		initialResvSample.sPos = initialResvSample.vPos + initialResvSample.rcEnvDir;
 	}
 
