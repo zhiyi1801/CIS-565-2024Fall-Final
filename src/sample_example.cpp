@@ -26,6 +26,7 @@
 
 #include <filesystem>
 #include <thread>
+#include <chrono>
 
 #define VMA_IMPLEMENTATION
 
@@ -415,6 +416,29 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   }
 
   LABEL_SCOPE_VK(cmdBuf);
+  auto now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  auto nowMillis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  static std::time_t prevFrameTime;
+  static bool firstFlag = true;
+  if (autoMove)
+  {
+      if (firstFlag)
+      {
+          prevFrameTime = nowMillis;
+          firstFlag = false;
+      }
+	  float deltaTime = (nowMillis - prevFrameTime)/1000.0f;
+      vec3 eye, center, up;
+      vec3 moveVector = vec3(0.5, 0, 0.f);
+      CameraManip.getLookat(eye, center, up);
+      CameraManip.setLookat(eye + (moveVector * deltaTime), center, up);
+	  prevFrameTime = nowMillis;
+  }
+  else
+  {
+      firstFlag = true;
+  }
 
   auto sec = profiler.timeRecurring("Render", cmdBuf);
 
@@ -454,24 +478,6 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
     auto slot = profiler.timeRecurring("Mipmap", cmdBuf);
     m_offscreen.genMipmap(cmdBuf);
   }
-
-  // Update the camera matrix
-  // Get the aspect ratio
-  const float aspectRatio = m_renderRegion.extent.width / static_cast<float>(m_renderRegion.extent.height);
-
-  // Get the near / far clip plane
-  glm::vec2   clipPlanes = CameraManip.getClipPlanes();
-
-  // View and projection matrices
-  const auto& view = CameraManip.getMatrix();
-  auto        proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
-
-  m_rtxState.prevViewMat = view;
-  m_rtxState.prevProjMat = proj;
-
-  glm::vec4 pos1(1.506f, 7.046f, -15.345f, 1.0f);
-  glm::vec4 t1 = view * pos1;
-  glm::vec4 t2 = proj * t1;
 }
 
 

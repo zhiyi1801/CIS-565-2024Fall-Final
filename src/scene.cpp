@@ -734,11 +734,14 @@ void Scene::createDescriptorSet(const nvh::GltfScene& gltf)
 void Scene::updateCamera(const VkCommandBuffer& cmdBuf, float aspectRatio)
 {
   const auto& view = CameraManip.getMatrix();
-  auto        proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.001f, 100000.0f);
+  auto        proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, CAMERA_NEAR, CAMERA_FAR);
   proj[1][1] *= -1;
+  m_camera.lastProjView = m_camera.projView;
+  m_camera.lastView = glm::inverse(m_camera.viewInverse);
   m_camera.viewInverse = glm::inverse(view);
   m_camera.projInverse = glm::inverse(proj);
-
+  m_camera.projView = proj * view;
+  m_camera.lastPosition = CameraManip.getEye();
   // Focal is the interest point
   glm::vec3 eye, center, up;
   CameraManip.getLookat(eye, center, up);

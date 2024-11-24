@@ -74,7 +74,7 @@ float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos, ReconnectionData rcData)
 	vec3 hitNormal = decompress_unit_vec(hitInfo.y);
 
 	// wi
-	vec3 wi = normalize(sPos - vPos);
+	vec3 wi = normalize(sPos - vPos) ;
 
 	// wo
 	vec3 wo = normalize(rcData.preRcVertexWo);
@@ -120,6 +120,7 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 		r1.age = r2.age;
 		r1.rcEnv = r2.rcEnv;
 		r1.rcEnvDir = r2.rcEnvDir;
+		r1.vMatId = r2.vMatId;
 	}
 
 	return isUpdate;
@@ -154,59 +155,37 @@ void StResample(ivec2 imageCoords)
 	Reservoir initialResvSample = initialReserviors[idx];
 
 	// If the initial reservoir hit environment
+	vec3 envDir = vec3(0.0f);
 	if(initialResvSample.rcEnv == 1)
 	{
+		// Get the environment direction
+		envDir = normalize(initialResvSample.rcEnvDir);
 		initialResvSample.sPos = initialResvSample.vPos + initialResvSample.rcEnvDir;
 	}
 
-	// Compute the world space position of the pixel
-	const vec2 pixelCenter = vec2(imageCoords) + vec2(0.5f);
-    const vec2 inUV = pixelCenter / vec2(rtxState.size.xy);
-    vec2       d = inUV * 2.0 - 1.0;
-
-	// Compute ray direction
-    vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
-    vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
-    vec4 direction = normalize(sceneCamera.viewInverse * vec4(normalize(target.xyz), 0));
-
-	// Spawwn ray to get origin and direction
-	Ray ray = raySpawn(imageCoords, ivec2(rtxState.size.xy));
-
-	// Get the Depth from the GBuffer
-	float depth = uintBitsToFloat(imageLoad(thisGbuffer, imageCoords).r);
-
-	// Compute the world space position of the pixel
-	vec4 worldPos = vec4(ray.origin + ray.direction * depth, 1.0f);
-	// imageStore(debugImage, imageCoords, worldPos);
-
-	// Camera matrix in the previous fram
-	mat4 prevViewProj = rtxState.prevProjMat * rtxState.prevViewMat;
-
-	// Compute the previous screen space position of the pixel
-	vec4 prevPosView = rtxState.prevViewMat * worldPos;
-	vec4 prevPosClip = prevViewProj * worldPos;
-	vec3 preScreen = prevPosClip.xyz / prevPosClip.w;
-	vec2 preUV = preScreen.xy * vec2(0.5f, -0.5f) + 0.5f;
-	ivec2 preID = ivec2(clamp(preUV * rtxState.size, vec2(0), vec2(rtxState.size - ivec2(1))));
+	ivec2 motionIdx = imageLoad(motionVector, imageCoords).xy;
 
 	// Get the previous linear index
-	uint preIdx = rtxState.size.x * preID.y + preID.x;
+	uint preIdx = rtxState.size.x * motionIdx.y + motionIdx.x;
 
 	// Temporal Check
 	// Check if the prev sample is valid
-	bool isPreValid = (rtxState.frame > 0) && all(greaterThan(preUV, vec2(0.0f))) && all(lessThan(preUV, vec2(1.0f)));
+	bool isPreValid = inBound(motionIdx, rtxState.size);
 
 	// Get the previous sample
 	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
-
+	imageStore(debugUintImage, imageCoords, ivec4(ivec2(motionIdx), 0, 1));
 	// If the temporal sample is valid, check the geometry
 	if(isPreValid)
 	{
 		// TODO: 0.1, 0.8 are the threshold values
-		isPreValid = (length(temporalPrevReservoir.vPos - initialResvSample.vPos) < 0.1f && dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.9f);
+		isPreValid = (dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.5f) && (temporalPrevReservoir.vMatId == initialResvSample.vMatId);
+
+		imageStore(resultImage, imageCoords, vec4(temporalPrevReservoir.vPos, 1.0f));
+		imageStore(debugImage, imageCoords, vec4(initialResvSample.vPos, 1.0f));
 
 		// Get the prev Camera Pos
-		vec3 prevCamPos = vec3(inverse(rtxState.prevViewMat) * vec4(0,0,0,1));
+		vec3 prevCamPos = vec3(inverse(sceneCamera.lastView) * vec4(0,0,0,1));
 
 		// Check the depth
 		float viewDepth = length(rtxState.cameraPos - initialResvSample.vPos);
@@ -214,17 +193,11 @@ void StResample(ivec2 imageCoords)
 
 		// a random number to discard temporal sample
 		float randNum = rand(rSeed);
-
-		// If the depth has difference and rand less than 0.15, discard the temporal sample
-		if(viewDepth / prevViewDepth < 0.98f && randNum < 0.0f)
-		{
-			isPreValid = false;
-		}
 	}
 
 	// Temporal Reuse
 	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, 30);
-	if(!isPreValid || temporalPrevReservoir.age > 100)
+	if(!isPreValid || temporalPrevReservoir.age > 500)
 	{
 		// If the temporal sample is not valid or is too old, reset M
 		temporalPrevReservoir.M = 0;
@@ -233,6 +206,7 @@ void StResample(ivec2 imageCoords)
 	// To use 1 sample
 	// temporalPrevReservoir.M = 0;
 
+	// If the pixel has no reconnection data, return
 	// Get the target pdf of the prev reservoir
 	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
 
@@ -261,8 +235,7 @@ void StResample(ivec2 imageCoords)
 	currentReserviors[preIdx] = temporalPrevReservoir;
 
 	// Debug
-	vec4 colorValue = vec4(vec2(preID) / vec2(rtxState.size - ivec2(1)), 1.0f, 1.0f);
-	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
+	imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
 
 	// DebugFloatBuffer
 	if(idx == 0)
@@ -270,10 +243,6 @@ void StResample(ivec2 imageCoords)
 		debugFloatBuffer[6] = rtxState.cameraPos.x;
 		debugFloatBuffer[7] = rtxState.cameraPos.y;
 		debugFloatBuffer[8] = rtxState.cameraPos.z;
-
-		debugFloatBuffer[3] = ray.direction.x;
-		debugFloatBuffer[4] = ray.direction.y;
-		debugFloatBuffer[5] = ray.direction.z;
 	}
 }
 

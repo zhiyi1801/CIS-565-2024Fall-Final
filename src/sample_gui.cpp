@@ -124,6 +124,7 @@ bool SampleGUI::guiRayTracing()
   auto  Normal = ImGuiH::Control::Flags::Normal;
   bool  changed{false};
   auto& rtxState(_se->m_rtxState);
+  auto& autoMove(_se->autoMove);
 
   changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 0, 10);
 
@@ -134,6 +135,7 @@ bool SampleGUI::guiRayTracing()
       return changed;
   });
 
+  changed |= GuiH::Checkbox("AutoMove", "", &autoMove);
   changed |= GuiH::Slider("Samples Per Frame", "", &rtxState.maxSamples, nullptr, Normal, 1, 10);
   changed |= GuiH::Slider("Max Iteration ", "", &_se->m_maxFrames, nullptr, Normal, 1, 1000);
   changed |= GuiH::Slider("De-scaling ",

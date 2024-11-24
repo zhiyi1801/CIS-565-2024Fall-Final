@@ -50,6 +50,9 @@ using uint  = unsigned int;
 #define END_ENUM()
 #endif
 
+#define CAMERA_NEAR 0.001f
+#define CAMERA_FAR 1000.0f
+
 const uint cellSizeNoHash = 1000;
 
 // Sets
@@ -107,6 +110,7 @@ eCellCounter = 10,
 eInitialSamples = 11,
 eReconnection = 12,
 eIndexTemp = 13,
+eMotionVector = 14,
 eDebugUintImage = 15,
 eDebugImage = 16,
 eDebugUintBuffer = 17,
@@ -139,6 +143,11 @@ struct SceneCamera
 {
   mat4  viewInverse;
   mat4  projInverse;
+  mat4	projView;
+  mat4	lastView;
+  mat4	lastProjView;
+  vec3	lastPosition;
+
   float focalDist;
   float aperture;
   // Extra
@@ -246,10 +255,6 @@ struct RtxState
 
   vec3 padding1;
   uint cellCount;
-
-  // Camera matrix
-  mat4 prevViewMat;
-  mat4 prevProjMat;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -353,7 +358,7 @@ struct Reservoir
 	uint rcEnv;
 
     vec3 radiance;
-	uint padding1;
+	int vMatId;
 
 	vec3 rcEnvDir;
 	uint padding2;
@@ -406,7 +411,7 @@ struct InitialSample
 
 	// If rc hit the env, store the env direction
 	vec3 rcEnvDir;
-	int padding4;
+	int preRcMatId;
 };
 
 // prev vertex is the vertex before the reconnect vertex, should be of high roughness so that the bsdf is meaningful for every direction
@@ -459,7 +464,7 @@ struct PathPayLoad
 	int padding4;
 
 	vec3 rcVertexNorm;
-	int padding5;
+	int preRcMatId;
 
 	vec3 rcEnvDir;
 	int rcEnv;

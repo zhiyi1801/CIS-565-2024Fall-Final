@@ -89,5 +89,21 @@ void main()
 	// Compute BSDF*cos
 	vec3 bsdfCos = metallicWorkflowBSDF(state, prevNormal, data.preRcVertexWo, fSample.dir) * absDot(prevNormal, fSample.dir);
 	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
+
+	// Update the result image
 	imageStore(resultImage, imageCoords, vec4(color, 1.0f));
+
+	//Accumulated
+	if(rtxState.frame > 0)
+	{
+		// Do accumulation over time
+		vec3 old_color  = imageLoad(resultImage, imageCoords).xyz;
+		vec3 new_result = mix(old_color, color, 1.0f / float(rtxState.frame + 1));
+		//imageStore(resultImage, imageCoords, vec4(new_result, 1.f));
+	}
+	else
+	{
+		// First frame, replace the value in the buffer
+		//imageStore(resultImage, imageCoords, vec4(color, 1.f));
+	}
 }

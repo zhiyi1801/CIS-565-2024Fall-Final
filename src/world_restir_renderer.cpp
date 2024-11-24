@@ -121,6 +121,7 @@ void WorldRestirRenderer::update(const VkExtent2D& size)
 	m_pAlloc->destroy(m_IndexTempBuffer);
 	m_pAlloc->destroy(m_DebugUintBuffer);
 	m_pAlloc->destroy(m_DebugFloatBuffer);
+	m_pAlloc->destroy(m_motionVector);
 
 	for (int i = 0; i < 2; ++i)
 	{
@@ -148,6 +149,7 @@ void WorldRestirRenderer::destroy()
 	m_pAlloc->destroy(m_IndexTempBuffer);
 	m_pAlloc->destroy(m_DebugUintBuffer);
 	m_pAlloc->destroy(m_DebugFloatBuffer);
+	m_pAlloc->destroy(m_motionVector);
 
 	m_pAlloc->destroy(m_gbuffer[0]);
 	m_pAlloc->destroy(m_gbuffer[1]);
@@ -251,6 +253,15 @@ void WorldRestirRenderer::createImage()
 		NAME_VK(DebugUintImage.image);
 		VkImageViewCreateInfo ivInfoUintDebug = nvvk::makeImageViewCreateInfo(DebugUintImage.image, DebugUintImageCreateInfo);
 
+		auto motionVecCreateInfo = nvvk::makeImage2DCreateInfo(m_size, m_motionVectorFormat,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+		nvvk::Image motionVecImg = m_pAlloc->createImage(motionVecCreateInfo);
+		NAME_VK(motionVecImg.image);
+
+		VkImageViewCreateInfo mvivInfo = nvvk::makeImageViewCreateInfo(motionVecImg.image, motionVecCreateInfo);
+		m_motionVector = m_pAlloc->createTexture(motionVecImg, mvivInfo);
+		m_motionVector.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
 		m_gbuffer[0] = m_pAlloc->createTexture(gbimage1, ivInfo1);
 		m_gbuffer[1] = m_pAlloc->createTexture(gbimage2, ivInfo2);
 		m_gbuffer[0].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -271,6 +282,8 @@ void WorldRestirRenderer::createImage()
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugUintImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_motionVector.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
 		genCmdBuf.submitAndWait(cmdBuf);
 	}
 }
@@ -284,6 +297,7 @@ void WorldRestirRenderer::createDescriptorSet()
 
 	m_bind.addBinding({ ReSTIRBindings::eLastGbuffer, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCurrentGbuffer, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eMotionVector, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
 
 	m_bind.addBinding({ ReSTIRBindings::eInitialReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCurrentReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
@@ -315,7 +329,7 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 18> writes;
+	std::array<VkWriteDescriptorSet, 19> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
@@ -356,11 +370,14 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes[14] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor);
 		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor);
 
+		// Motion vec
+		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eMotionVector, &m_motionVector.descriptor);
+
 		// debug buffers desc
 		VkDescriptorBufferInfo debugUintBufInfo = { m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint32_t) };
 		VkDescriptorBufferInfo debugFloatBufInfo = { m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float) };
-		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
-		writes[17] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
+		writes[17] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
+		writes[18] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}

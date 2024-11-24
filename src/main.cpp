@@ -102,7 +102,7 @@ int main(int argc, char** argv)
   if(glfwInit() == GLFW_FALSE)
   {
     return 1;
-  }
+  }**** versus bing. Sorry, this is a transparent material, I didn't handle it. Good. My God. More. Ha ha. Cortana. I was one of our most. Thank you. Shonghua Mantien. What's her dreams are? A much slower dreamsly young with me. Dial. 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
 

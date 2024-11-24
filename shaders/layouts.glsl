@@ -52,6 +52,7 @@ layout(set = S_ENV, binding = eImpSamples,  scalar)		buffer _EnvAccel		{ EnvAcce
 
 layout(set = S_RESTIR, binding = eLastGbuffer)       uniform readonly uimage2D lastGbuffer;
 layout(set = S_RESTIR, binding = eCurrentGbuffer)       uniform uimage2D thisGbuffer;
+layout(set = S_RESTIR, binding = eMotionVector)      uniform iimage2D motionVector;
 
 layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
 layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReserviors[]; };

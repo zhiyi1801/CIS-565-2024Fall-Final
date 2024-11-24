@@ -40,10 +40,12 @@ private:
 	VkFormat m_gbufferFormat{ VK_FORMAT_R32G32B32A32_UINT };
 	VkFormat m_DebugImageFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 	VkFormat m_DebugUintImageFormat{ VK_FORMAT_R32G32B32A32_UINT };
+	VkFormat m_motionVectorFormat{ VK_FORMAT_R16G16_SINT };
 
 	std::array<nvvk::Texture, 2> m_gbuffer;
 	nvvk::Texture m_DebugImage;
 	nvvk::Texture m_DebugUintImage;
+	nvvk::Texture m_motionVector;
 
 	nvvk::Buffer m_InitialReservoir;
 	nvvk::Buffer m_AppendBuffer;

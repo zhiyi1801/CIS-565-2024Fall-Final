@@ -322,6 +322,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
     vec3 sampleWi;
     vec3 sampleBSDF;
     Material lastMaterial;
+    bool validPath = false;
 
     for (int depth = 0; depth < rtxState.maxDepth; depth++)
     {
@@ -369,6 +370,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
         if (connectabele)
         {
+            validPath = true;
 			// If hit the scene, record the vertex position and normal
             if (prd.hitT != INFINITY)
             {
@@ -510,6 +512,21 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             }
         }
 
+        if (pathState.currentVertexIndex < pathState.rcVertexLength)
+        {
+            // Pack the hit info of the prev vertex
+            // pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
+
+            // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
+            pathState.preRcVertexWo = wo;
+
+            // Record the position of the prev vertex
+            pathState.preRcVertexPos = state.position;
+
+            // Record the face normal of the prev vertex
+            pathState.preRcVertexNorm = state.ffnormal;
+        }
+
 		// Sample Next Ray
         {
             // Sample next ray according to BSDF
@@ -556,6 +573,9 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 				// Record the pdf from the prev vertex to the reconnect vertex
                 pathState.pdf = samplePdf;
 
+				// Record the material ID of the prev vertex
+				pathState.preRcMatId = int(state.matID);
+
                 // Record the wi on the prev vertex
                 pathState.preRcVertexWi = sampleWi;
             }
@@ -597,7 +617,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 			// If next vertex is the reconnect vertex, do not terminate the path
             bool nextReconnect = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex + 1 == pathState.rcVertexLength);
             // For Russian-Roulette (minimizing live state)
-            float rrPcont = ((depth >= RR_DEPTH) && !nextReconnect) ?
+            float rrPcont = ((depth >= RR_DEPTH) && !validPath) ?
                 min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
                 1.0;
             if (rand(prd.seed) >= rrPcont)
@@ -605,6 +625,18 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 break;                // paths with low throughput that won't contribute
             }
             throughput /= rrPcont;  // boost the energy of the non-terminated paths
+            // If the vertex is in the prefix path
+            if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
+            {
+                // Update prefix throughput
+                pathState.prefixThp /= rrPcont;
+            }
+            // If the vertex is in the reconnect path
+            else
+            {
+                // Accumulate reconnect throughput
+                pathState.thp /= rrPcont;
+            }
 #endif
         }
     }
@@ -671,9 +703,10 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.cacheBsdfCosWeight = vec3(0);
 
     pathState.rcVertexPos = vec3(0.0f);
-    pathState.rcVertexNorm = vec3(0.0f);
+    pathState.rcVertexNorm = vec3(1.2f);
     pathState.preRcVertexPos = vec3(0.0f);
     pathState.preRcVertexNorm = vec3(0.0f);
+    pathState.preRcMatId = -1;
 
     pathState.validRcPath = 0;
 
@@ -698,6 +731,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 	initialSampleBuffer[idx].pdf = pathState.pdf;
 	initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
 	initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
+	initialSampleBuffer[idx].preRcMatId = pathState.preRcMatId;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
@@ -734,7 +768,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     // 
 
     // return pathState.cacheBsdfCosWeight * pathState.pdf;
-    return radiance;
+    // return radiance;
     // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
     // return pathState.rcVertexRadiance;
