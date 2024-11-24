@@ -164,7 +164,7 @@ vec3 RayTraceRestirDI(Ray r)
 
     // Get the shading state
     State state = GetState(prd, r.direction);
-    GetMaterials(state, r);
+    GetMaterialsAndTextures(state, r);
 
     // Compute motion vector and geometry info
     ivec2 motionIdx = createMotionIndex(state.position);
@@ -181,6 +181,7 @@ vec3 RayTraceRestirDI(Ray r)
     vec3 wo = -r.direction;
     vec3 direct = vec3(0.0);
     vec3 albedo = state.mat.albedo;
+    // state.mat.albedo = vec3(1.0f);
 
     // Use reservoir based direct illumination
     DirectReservoir resv;
@@ -269,6 +270,6 @@ void main()
 
     vec3 radiance = RayTraceRestirDI(ray);
     vec3 pixelColor = clampRadiance(radiance);
-
-    imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+    vec3 norm = decompress_unit_vec(imageLoad(thisGbuffer, imageCoords).y);
+    imageStore(thisDirectResultImage, imageCoords, vec4(pixelColor, 1.f));
 }

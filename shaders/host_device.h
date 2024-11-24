@@ -76,7 +76,10 @@ END_ENUM();
 // Output image - Set 1
 START_ENUM(OutputBindings)
   eSampler = 0,  // As sampler
-  eStore   = 1   // As storage
+  eStore   = 1,   // As storage
+  eDirectSampler = 2,
+  eThisDirectResult = 3,   // As storage
+  eLastDirectResult = 4   // As storage
 END_ENUM();
 
 // Scene Data - Set 2
@@ -140,6 +143,11 @@ START_ENUM(DebugMode)
 END_ENUM();
 // clang-format on
 
+START_ENUM(RestirDebugMode)
+	eReSTIR = 0,   //
+	eDirectLight = 1,   //
+	eHashGrid = 2   //
+END_ENUM();
 
 // Camera of the scene
 #define CAMERA_NEAR 0.001f
@@ -245,7 +253,7 @@ struct RtxState
 
   int RISSampleNum;
   int reservoirClamp;
-  int p2;
+  int restirDebugMode;
   int p3;
 
   // Light Info
@@ -563,14 +571,25 @@ struct uintStruct
 // ReSTIR DI
 struct LightSample {
 	vec3 Li;
+	float padding;
+
 	vec3 wi;
 	float dist;
 };
 
 struct DirectReservoir {
 	LightSample lightSample;
+
 	uint M;
 	float weight;
+	uint padding1;
+	uint padding2;
+};
+
+// ReSTIR GI
+struct GISample
+{
+	vec3 nv;
 };
 
 #endif  // COMMON_HOST_DEVICE

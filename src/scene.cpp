@@ -101,6 +101,10 @@ bool Scene::load(const std::string& filename)
   // light buffer info buffer
   if (m_lightBufInfo.puncLightSize > 0 || m_lightBufInfo.trigLightSize > 0)
       m_lightBufInfo.trigSampProb = m_trigLightWeight / (m_trigLightWeight + m_puncLightWeight);
+  else
+  {
+      m_lightBufInfo.trigSampProb = 0.0f;
+  }
   m_buffer[eLightBufInfo] = m_pAlloc->createBuffer(cmdBuf, sizeof(LightBufInfo), &m_lightBufInfo, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   NAME_VK(m_buffer[eLightBufInfo].buffer);
 

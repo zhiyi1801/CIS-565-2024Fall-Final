@@ -26,7 +26,7 @@
 
 #define PI 3.14159265358979323
 #define TWO_PI 6.28318530717958648
-#define INFINITY 1e32
+#define INFINITY 1e28
 #define EPS 0.0001
 
 //precision highp int;

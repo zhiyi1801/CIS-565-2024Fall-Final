@@ -129,6 +129,7 @@ void SampleExample::loadEnvironmentHdr(const std::string& hdrFilename)
 //
 void SampleExample::loadAssets(const char* filename)
 {
+  m_totalFrames = -1;
   std::string sfile = filename;
 
   // Need to stop current rendering
@@ -210,6 +211,7 @@ void SampleExample::updateFrame()
 
   if(m_rtxState.frame < m_maxFrames)
     m_rtxState.frame++;
+    m_totalFrames++;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -394,7 +396,7 @@ void SampleExample::drawPost(VkCommandBuffer cmdBuf)
 
   m_offscreen.m_tonemapper.zoom           = m_descaling ? 1.0f / m_descalingLevel : 1.0f;
   m_offscreen.m_tonemapper.renderingRatio = size / area;
-  m_offscreen.run(cmdBuf);
+  m_offscreen.run(cmdBuf, m_rtxState, m_totalFrames);
 
   if(m_showAxis)
     m_axis.display(cmdBuf, CameraManip.getMatrix(), m_size);
@@ -431,9 +433,9 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
       }
 	  float deltaTime = (nowMillis - prevFrameTime)/1000.0f;
       vec3 eye, center, up;
-      vec3 moveVector = vec3(0.5, 0, 0.f);
+      vec3 moveVector = vec3(0.8, 0, 0.f);
       CameraManip.getLookat(eye, center, up);
-      CameraManip.setLookat(eye + (moveVector * deltaTime), center, up);
+      CameraManip.setLookat(eye + (moveVector * deltaTime), center + (moveVector * deltaTime), up);
 	  prevFrameTime = nowMillis;
   }
   else
@@ -469,7 +471,7 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
-  std::vector<VkDescriptorSet> descSets{ m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet };
+  std::vector<VkDescriptorSet> descSets{ m_accelStruct.getDescSet(), m_offscreen.getDescSet(m_totalFrames), m_scene.getDescSet(), m_descSet };
   m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler, descSets, m_rtxState.frame);
 
   //m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,

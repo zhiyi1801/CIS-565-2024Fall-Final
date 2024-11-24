@@ -34,7 +34,7 @@ vec3 Eval(State state, vec3 V, vec3 N, vec3 L, inout float pdf) {
 }
 
 vec3 Sample(State state, vec3 V, vec3 N, inout vec3 L, inout float pdf, inout RngStateType seed) {
-    return metallicWorkflowSample(state, N, V, L, pdf, seed);
+    return metallicWorkflowSample(state, N, V, vec3(rand(seed), rand(seed), rand(seed)), L, pdf);
 }
 
 vec3 EnvRadiance(vec3 dir) {
@@ -303,7 +303,7 @@ uvec4 encodeGeometryInfo(State state, float depth) {
     // Depth
     gInfo.x = floatBitsToUint(depth);
 
-    gInfo.y = compress_unit_vec(state.ffnormal);
+    gInfo.y = compress_unit_vec(state.normal);
     gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior - 1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
     gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
     gInfo.w += hash8bit(state.matID);
@@ -627,34 +627,6 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 {
     vec3 pixelColor = vec3(0);
 
-
-    //   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
-    //   vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
-
-    //   // Compute sampling position between [-1 .. 1]
-    //   const vec2 pixelCenter = vec2(imageCoords) /*+ subpixel_jitter*/;
-    //   const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
-    //   vec2       d = inUV * 2.0 - 1.0;
-
-    //   // Compute ray origin and direction
-    //   vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
-    //   vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
-    //   vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
-
-    //   // Depth-of-Field
-    //   vec3  focalPoint = sceneCamera.focalDist * direction.xyz;
-    //   float cam_r1 = rand(prd.seed) * M_TWO_PI;
-    //   float cam_r2 = rand(prd.seed) * sceneCamera.aperture;
-    //   vec4  cam_right = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
-    //   vec4  cam_up = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
-    //   vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
-    //   vec3  finalRayDir = normalize(focalPoint - randomAperturePos);
-
-       //// Cancle the depth-of-field effect
-       //finalRayDir = normalize(direction.xyz);
-    //   Ray ray = Ray(origin.xyz, finalRayDir);
-    //   // Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
-
     Ray ray = raySpawn(imageCoords, ivec2(sizeImage));
 
     PathPayLoad pathState;
@@ -721,27 +693,8 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
         pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
     }
 
-    // return initialSampleBuffer[idx].preRcVertexPos;
 
-    //if (pathState.validRcPath > 0)
-    //{
-    //    return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
-    //}
-    //else
-    //{
-    //    return vec3(0.0f, 0.0f, 0.0f);
-    //}
-    // 
-
-    // return pathState.cacheBsdfCosWeight * pathState.pdf;
     return radiance;
-    // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
-    // return pathState.radiance;
-    // return pathState.rcVertexRadiance;
-    // return pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
-    // return pathState.prefixPathRadiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
 
-    //vec3 randomCol = randomColor(radiance);
-    //return randomCol;
 }

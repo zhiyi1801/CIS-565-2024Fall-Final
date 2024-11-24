@@ -355,8 +355,8 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
 		// Direct Light Reservoirs
-		VkDescriptorBufferInfo lastDirectResvBufInfo = { m_DirectReservoir[i].buffer, 0, directResvSize };
-		VkDescriptorBufferInfo thisDirectResvBufInfo = { m_DirectReservoir[!i].buffer, 0, directResvSize };
+		VkDescriptorBufferInfo lastDirectResvBufInfo = { m_DirectReservoir[!i].buffer, 0, directResvSize };
+		VkDescriptorBufferInfo thisDirectResvBufInfo = { m_DirectReservoir[i].buffer, 0, directResvSize };
 
 		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
 		VkDescriptorBufferInfo indexBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
@@ -464,9 +464,9 @@ void WorldRestirRenderer::cellScan(const VkCommandBuffer& cmdBuf, const int fram
 
 		vkCmdPipelineBarrier(
 			cmdBuf,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  // Դ�׶�
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,  // Ŀ��׶�
-			0,                                    // �������־
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  // 
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,  // 
+			0,                                    // 
 			0, nullptr,                           // Memory Barriers
 			2, bufferBarriers,                    // Buffer Barriers
 			0, nullptr                            // Image Barriers
@@ -568,11 +568,12 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	// Barrier for m_CellCounter
 	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+
 	bufferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 	bufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	bufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	bufferBarriers[0].buffer = m_CellCounter[(frames + 1) % 2].buffer;
+	bufferBarriers[0].buffer = m_Reservoirs[(frames + 1) % 2].buffer;
 	bufferBarriers[0].offset = 0;
 	bufferBarriers[0].size = hashBufferSize;
 
@@ -622,19 +623,66 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	InsertPerfMarker(cmdBuf, "Compute Shader: Direct Light", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_DirectLightPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (RayTraceBlockSizeX - 1)) / RayTraceBlockSizeX, (size.height + (RayTraceBlockSizeY - 1)) / RayTraceBlockSizeY, 1);
+
+	// ReSTIR DI Pass Barrier
+	VkBufferMemoryBarrier DiBarriers[2] = {};
+
+	VkDeviceSize directResvSize = m_size.width * m_size.height * sizeof(DirectReservoir);
+	DiBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	DiBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	DiBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	DiBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	DiBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	DiBarriers[0].buffer = m_DirectReservoir[(frames + 1) % 2].buffer;
+	DiBarriers[0].offset = 0;
+	DiBarriers[0].size = directResvSize;
+
+	DiBarriers[1] = bufferBarriers[0];
+	DiBarriers[1].buffer = m_DirectReservoir[(frames) % 2].buffer;
+
+	VkImageMemoryBarrier DiImageBarriers[3] = {};
+	DiImageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	DiImageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL; 
+	DiImageBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;  
+	DiImageBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; 
+	DiImageBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT; 
+	DiImageBarriers[0].image = m_motionVector.image; 
+	DiImageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; 
+	DiImageBarriers[0].subresourceRange.baseMipLevel = 0;
+	DiImageBarriers[0].subresourceRange.levelCount = 1;
+	DiImageBarriers[0].subresourceRange.baseArrayLayer = 0;
+	DiImageBarriers[0].subresourceRange.layerCount = 1;
+
+	DiImageBarriers[1] = DiImageBarriers[0];
+	DiImageBarriers[1].image = m_gbuffer[(frames + 1) % 2].image;
+	
+	VkMemoryBarrier DiMemoryBarrier = {};
+	DiMemoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	DiMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	DiMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,           // Source stage (Compute Shader)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,           // Destination stage (Compute Shader | Frag shader)
+		0,                                              // No flags
+		1, &DiMemoryBarrier,                                     // No memory barriers
+		2, DiBarriers,									// Buffer barriers
+		2, DiImageBarriers                              // image barriers
+	);
 	EndPerfMarker(cmdBuf);
 	
 	// --------------------------------------------
 	// Gbuffer Pass
-	InsertPerfMarker(cmdBuf, "Compute Shader: GBuffer", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
-	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	EndPerfMarker(cmdBuf);
+	//InsertPerfMarker(cmdBuf, "Compute Shader: GBuffer", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
+	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	//EndPerfMarker(cmdBuf);
 
 	// Insert barrier for GBuffer Pass
 
-	//// --------------------------------------------
-	//// Initial Sample Pass
+	// --------------------------------------------
+	// Initial Sample Pass
 	//InsertPerfMarker(cmdBuf, "Compute Shader: Initial Sample", color[(count++) % 3]);
 	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialSamplePipeline);
 	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
@@ -749,8 +797,8 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	//	0, nullptr                                      // No image barriers
 	//);
 
-	//// --------------------------------------------
-	//// Spatial Temporal Resample Pass
+	// --------------------------------------------
+	// Spatial Temporal Resample Pass
 	//InsertPerfMarker(cmdBuf, "Compute Shader: Spatial Temporal Resample", color[(count++) % 3]);
 	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_STResamplePipeline);
 	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
@@ -811,8 +859,8 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	//	0, nullptr                                      // No image barriers
 	//);
 
-	//// --------------------------------------------
-	//// Final Shading Pass
+	// --------------------------------------------
+	// Final Shading Pass
 	//InsertPerfMarker(cmdBuf, "Compute Shader: Final Shading", color[(count++) % 3]);
 	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalShadingPipeline);
 	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
