@@ -683,186 +683,186 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 
 	// --------------------------------------------
 	// Initial Sample Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Initial Sample", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialSamplePipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Sample", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialSamplePipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
+
+	// Insert barrier for Initial Sample Pass
+	VkBufferMemoryBarrier initialSamplePassBarriers[2] = {};
+
+	// Barrier for m_InitialSamples
+	initialSamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	initialSamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	initialSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	initialSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialSamplePassBarriers[0].buffer = m_InitialSamples.buffer;
+	initialSamplePassBarriers[0].offset = 0;
+	initialSamplePassBarriers[0].size = elementCount * sizeof(InitialSample);
+
+	// Barrier for m_ReconnectionData
+	initialSamplePassBarriers[1] = bufferBarriers[0];
+	initialSamplePassBarriers[1].buffer = m_ReconnectionData.buffer;
+	initialSamplePassBarriers[1].size = elementCount * sizeof(ReconnectionData);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		2, initialSamplePassBarriers,				// Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
+
+	// --------------------------------------------
+	// Initial Reservoir Pass
+	InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
+
+	// Insert barrier for Initial Reservoir Pass
+	VkBufferMemoryBarrier initialReservoirPassBarriers[2] = {};
+
+	// Barrier for m_InitialReservoir
+	initialReservoirPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	initialReservoirPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	initialReservoirPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	initialReservoirPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	initialReservoirPassBarriers[0].buffer = m_InitialReservoir.buffer;
+	initialReservoirPassBarriers[0].offset = 0;
+	initialReservoirPassBarriers[0].size = elementCount * sizeof(Reservoir);
+
+	// Barrier for m_AppendBuffer
+	initialReservoirPassBarriers[1] = bufferBarriers[0];
+	initialReservoirPassBarriers[1].buffer = m_AppendBuffer.buffer;
+	initialReservoirPassBarriers[1].size = elementCount * sizeof(HashAppendData);
+
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		2, initialReservoirPassBarriers,				// Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
+
+	// --------------------------------------------
+	// Cell Scan Pass
+	InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
+	this->cellScan(cmdBuf, frames);
+	EndPerfMarker(cmdBuf);
+
+	//InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan Validate", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellValidationPipeline);
+	//vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
 	//EndPerfMarker(cmdBuf);
 
-	//// Insert barrier for Initial Sample Pass
-	//VkBufferMemoryBarrier initialSamplePassBarriers[2] = {};
+	// --------------------------------------------
+	// Build Hash Grid Pass
+	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
-	//// Barrier for m_InitialSamples
-	//initialSamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//initialSamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	//initialSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	//initialSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//initialSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//initialSamplePassBarriers[0].buffer = m_InitialSamples.buffer;
-	//initialSamplePassBarriers[0].offset = 0;
-	//initialSamplePassBarriers[0].size = elementCount * sizeof(InitialSample);
+	// Insert barrier for Build Hash Grid Pass
+	VkBufferMemoryBarrier buildHashGridPassBarriers[1] = {};
 
-	//// Barrier for m_ReconnectionData
-	//initialSamplePassBarriers[1] = bufferBarriers[0];
-	//initialSamplePassBarriers[1].buffer = m_ReconnectionData.buffer;
-	//initialSamplePassBarriers[1].size = elementCount * sizeof(ReconnectionData);
+	// Barrier for m_CellStorage
+	buildHashGridPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	buildHashGridPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	buildHashGridPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	buildHashGridPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	buildHashGridPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	buildHashGridPassBarriers[0].buffer = m_CellStorage[(frames + 1) % 2].buffer;
+	buildHashGridPassBarriers[0].offset = 0;
+	buildHashGridPassBarriers[0].size = elementCount * sizeof(uint);
 
-	//// Apply the pipeline barrier
-	//vkCmdPipelineBarrier(
-	//	cmdBuf,
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
-	//	0,                                              // No flags
-	//	0, nullptr,                                     // No memory barriers
-	//	2, initialSamplePassBarriers,				// Buffer barriers
-	//	0, nullptr                                      // No image barriers
-	//);
-
-	//// --------------------------------------------
-	//// Initial Reservoir Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Initial Reservoir", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_InitialReservoirPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	//EndPerfMarker(cmdBuf);
-
-	//// Insert barrier for Initial Reservoir Pass
-	//VkBufferMemoryBarrier initialReservoirPassBarriers[2] = {};
-
-	//// Barrier for m_InitialReservoir
-	//initialReservoirPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//initialReservoirPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	//initialReservoirPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	//initialReservoirPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//initialReservoirPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//initialReservoirPassBarriers[0].buffer = m_InitialReservoir.buffer;
-	//initialReservoirPassBarriers[0].offset = 0;
-	//initialReservoirPassBarriers[0].size = elementCount * sizeof(Reservoir);
-
-	//// Barrier for m_AppendBuffer
-	//initialReservoirPassBarriers[1] = bufferBarriers[0];
-	//initialReservoirPassBarriers[1].buffer = m_AppendBuffer.buffer;
-	//initialReservoirPassBarriers[1].size = elementCount * sizeof(HashAppendData);
-
-	//// Apply the pipeline barrier
-	//vkCmdPipelineBarrier(
-	//	cmdBuf,
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
-	//	0,                                              // No flags
-	//	0, nullptr,                                     // No memory barriers
-	//	2, initialReservoirPassBarriers,				// Buffer barriers
-	//	0, nullptr                                      // No image barriers
-	//);
-
-	//// --------------------------------------------
-	//// Cell Scan Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan", color[(count++) % 3]);
-	////vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellPipeline);
-	////vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
-	//this->cellScan(cmdBuf, frames);
-	//EndPerfMarker(cmdBuf);
-
-	////InsertPerfMarker(cmdBuf, "Compute Shader: Cell Scan Validate", color[(count++) % 3]);
-	////vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_ScanCellValidationPipeline);
-	////vkCmdDispatch(cmdBuf, (cellSize + (1024 - 1)) / 1024, 1, 1);
-	////EndPerfMarker(cmdBuf);
-
-	//// --------------------------------------------
-	//// Build Hash Grid Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	//EndPerfMarker(cmdBuf);
-
-	//// Insert barrier for Build Hash Grid Pass
-	//VkBufferMemoryBarrier buildHashGridPassBarriers[1] = {};
-
-	//// Barrier for m_CellStorage
-	//buildHashGridPassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//buildHashGridPassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	//buildHashGridPassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	//buildHashGridPassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//buildHashGridPassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//buildHashGridPassBarriers[0].buffer = m_CellStorage[(frames + 1) % 2].buffer;
-	//buildHashGridPassBarriers[0].offset = 0;
-	//buildHashGridPassBarriers[0].size = elementCount * sizeof(uint);
-
-	//// Apply the pipeline barrier
-	//vkCmdPipelineBarrier(
-	//	cmdBuf,
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
-	//	0,                                              // No flags
-	//	0, nullptr,                                     // No memory barriers
-	//	1, buildHashGridPassBarriers,				    // Buffer barriers
-	//	0, nullptr                                      // No image barriers
-	//);
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		1, buildHashGridPassBarriers,				    // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
 	// --------------------------------------------
 	// Spatial Temporal Resample Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Spatial Temporal Resample", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_STResamplePipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	//EndPerfMarker(cmdBuf);
+	InsertPerfMarker(cmdBuf, "Compute Shader: Spatial Temporal Resample", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_STResamplePipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
-	//// Insert barrier for Spatial Temporal Resample Pass
-	//VkBufferMemoryBarrier spatialTemporalResamplePassBarriers[1] = {};
+	// Insert barrier for Spatial Temporal Resample Pass
+	VkBufferMemoryBarrier spatialTemporalResamplePassBarriers[1] = {};
 
-	//// Barrier for m_currentReservoirs
-	//spatialTemporalResamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//spatialTemporalResamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	//spatialTemporalResamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	//spatialTemporalResamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//spatialTemporalResamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//spatialTemporalResamplePassBarriers[0].buffer = m_Reservoirs[(frames + 1) % 2].buffer;
-	//spatialTemporalResamplePassBarriers[0].offset = 0;
-	//spatialTemporalResamplePassBarriers[0].size = reseviorCount * sizeof(Reservoir);
+	// Barrier for m_currentReservoirs
+	spatialTemporalResamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	spatialTemporalResamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	spatialTemporalResamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	spatialTemporalResamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	spatialTemporalResamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	spatialTemporalResamplePassBarriers[0].buffer = m_Reservoirs[(frames + 1) % 2].buffer;
+	spatialTemporalResamplePassBarriers[0].offset = 0;
+	spatialTemporalResamplePassBarriers[0].size = reseviorCount * sizeof(Reservoir);
 
-	//// Apply the pipeline barrier
-	//vkCmdPipelineBarrier(
-	//	cmdBuf,
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
-	//	0,                                              // No flags
-	//	0, nullptr,                                     // No memory barriers
-	//	1, spatialTemporalResamplePassBarriers,				    // Buffer barriers
-	//	0, nullptr                                      // No image barriers
-	//);
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		1, spatialTemporalResamplePassBarriers,				    // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
-	//// --------------------------------------------
-	//// Final Sample Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Final Sample", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalSamplePipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	//EndPerfMarker(cmdBuf);
+	// --------------------------------------------
+	// Final Sample Pass
+	InsertPerfMarker(cmdBuf, "Compute Shader: Final Sample", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalSamplePipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 
-	//// Insert barrier for Final Sample Pass
-	//VkBufferMemoryBarrier finalSamplePassBarriers[1] = {};
+	// Insert barrier for Final Sample Pass
+	VkBufferMemoryBarrier finalSamplePassBarriers[1] = {};
 
-	//// Barrier for m_FinalSample
-	//finalSamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//finalSamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	//finalSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	//finalSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//finalSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//finalSamplePassBarriers[0].buffer = m_FinalSample.buffer;
-	//finalSamplePassBarriers[0].offset = 0;
-	//finalSamplePassBarriers[0].size = elementCount * sizeof(FinalSample);
+	// Barrier for m_FinalSample
+	finalSamplePassBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	finalSamplePassBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	finalSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	finalSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	finalSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	finalSamplePassBarriers[0].buffer = m_FinalSample.buffer;
+	finalSamplePassBarriers[0].offset = 0;
+	finalSamplePassBarriers[0].size = elementCount * sizeof(FinalSample);
 
-	//// Apply the pipeline barrier
-	//vkCmdPipelineBarrier(
-	//	cmdBuf,
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
-	//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
-	//	0,                                              // No flags
-	//	0, nullptr,                                     // No memory barriers
-	//	1, finalSamplePassBarriers,				    // Buffer barriers
-	//	0, nullptr                                      // No image barriers
-	//);
+	// Apply the pipeline barrier
+	vkCmdPipelineBarrier(
+		cmdBuf,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,                  // Source stage (Fill Buffer)
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,            // Destination stage (Compute Shader)
+		0,                                              // No flags
+		0, nullptr,                                     // No memory barriers
+		1, finalSamplePassBarriers,				    // Buffer barriers
+		0, nullptr                                      // No image barriers
+	);
 
 	// --------------------------------------------
 	// Final Shading Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: Final Shading", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalShadingPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-	//EndPerfMarker(cmdBuf);
+	InsertPerfMarker(cmdBuf, "Compute Shader: Final Shading", color[(count++) % 3]);
+	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_FinalShadingPipeline);
+	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	EndPerfMarker(cmdBuf);
 }
