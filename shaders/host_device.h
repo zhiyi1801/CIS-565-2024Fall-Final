@@ -241,6 +241,12 @@ struct RtxState
   ivec2 size;                   // rendering size
   int   minHeatmap;             // Debug mode - heat map
   int   maxHeatmap;
+  uint  time;
+
+  int RISSampleNum;
+  int reservoirClamp;
+  int p2;
+  int p3;
 
   // Light Info
   float envMapLuminIntegInv;

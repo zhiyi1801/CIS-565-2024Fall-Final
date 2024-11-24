@@ -54,6 +54,10 @@ layout(set = S_RESTIR, binding = eLastGbuffer)       uniform readonly uimage2D l
 layout(set = S_RESTIR, binding = eCurrentGbuffer)       uniform uimage2D thisGbuffer;
 layout(set = S_RESTIR, binding = eMotionVector)      uniform iimage2D motionVector;
 
+// ReSTIR DI
+layout(set = S_RESTIR, binding = ePrevDirectReservoirs, scalar) buffer _PrevDirectResv { DirectReservoir prevDirectResv[]; };
+layout(set = S_RESTIR, binding = eCurrentDirectReservoirs, scalar) buffer _CurrentDirectResv { DirectReservoir currentDirectResv[]; };
+
 layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
 layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReserviors[]; };
 layout(set = S_RESTIR, binding = ePrevReservoirs, scalar)   buffer _PrevReservoirs { Reservoir prevReserviors[]; };

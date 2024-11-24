@@ -205,6 +205,7 @@ public:
 
   std::shared_ptr<SampleGUI> m_gui;
 
+  std::chrono::steady_clock::time_point m_start_time;
   //
   //-------------------------
   bool autoMove;

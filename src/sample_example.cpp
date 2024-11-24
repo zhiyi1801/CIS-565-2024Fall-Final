@@ -103,6 +103,7 @@ void SampleExample::loadScene(const std::string& filename)
 
   // The picker is the helper to return information from a ray hit under the mouse cursor
   m_picker.setTlas(m_accelStruct.getTlas());
+  m_start_time = std::chrono::steady_clock::now();
   resetFrame();
 }
 
@@ -439,6 +440,9 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   {
       firstFlag = true;
   }
+
+  // Set the global time
+  m_rtxState.time = (uint)(std::chrono::duration<double>(std::chrono::steady_clock::now() - m_start_time).count() * 1000.0);
 
   auto sec = profiler.timeRecurring("Render", cmdBuf);
 

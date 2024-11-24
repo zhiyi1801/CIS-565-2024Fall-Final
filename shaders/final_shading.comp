@@ -91,7 +91,7 @@ void main()
 	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
 
 	// Update the result image
-	imageStore(resultImage, imageCoords, vec4(color, 1.0f));
+	// imageStore(resultImage, imageCoords, vec4(color, 1.0f));
 
 	//Accumulated
 	if(rtxState.frame > 0)

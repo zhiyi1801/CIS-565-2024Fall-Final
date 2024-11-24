@@ -170,9 +170,6 @@ void StResample(ivec2 imageCoords)
 		// TODO: 0.1, 0.8 are the threshold values
 		isPreValid = (dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.5f) && (temporalPrevReservoir.vMatId == initialResvSample.vMatId);
 
-		imageStore(resultImage, imageCoords, vec4(temporalPrevReservoir.vPos, 1.0f));
-		imageStore(debugImage, imageCoords, vec4(initialResvSample.vPos, 1.0f));
-
 		// Get the prev Camera Pos
 		vec3 prevCamPos = vec3(inverse(sceneCamera.lastView) * vec4(0,0,0,1));
 
@@ -224,7 +221,7 @@ void StResample(ivec2 imageCoords)
 	currentReserviors[preIdx] = temporalPrevReservoir;
 
 	// Debug
-	imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
+	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
 
 	// DebugFloatBuffer
 	if(idx == 0)

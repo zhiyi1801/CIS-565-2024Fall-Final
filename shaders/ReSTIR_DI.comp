@@ -1,3 +1,4 @@
+// https://github.com/IwakuraRein/CIS-565-Final-VR-Raytracer
 #version 460
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
@@ -63,7 +64,8 @@ bool findTemporalNeighbor(
     return false;
 }
 
-void saveNewReservoir(DirectReservoir resv) {
+void saveNewReservoir(DirectReservoir resv) 
+{
     currentDirectResv[imageCoords.y * rtxState.size.x + imageCoords.x] = resv;
 }
 
@@ -90,6 +92,55 @@ float WDirect(DirectReservoir resv, State state, vec3 wo)
     return resv.weight / (Luminance(PHatDirect(resv, state, wo)) *  float(resv.M));
 }
 
+// Reset the direct reservoir
+void resvReset(inout DirectReservoir resv) {
+    resv.M = 0;
+    resv.weight = 0;
+}
+
+// Update the direct reservoir
+void resvUpdate(inout DirectReservoir resv, LightSample newSample, float newWeight, float r) 
+{
+    resv.weight += newWeight;
+    resv.M += 1;
+    if (r * resv.weight < newWeight) 
+    {
+        resv.lightSample = newSample;
+    }
+}
+
+bool resvInvalid(DirectReservoir resv) 
+{
+    return isnan(resv.weight) || resv.weight < 0.0;
+}
+
+void resvMerge(inout DirectReservoir resv, DirectReservoir rhs, float r) 
+{
+    resv.weight += rhs.weight;
+    resv.M += rhs.M;
+    if (r * resv.weight < rhs.weight) 
+    {
+        resv.lightSample = rhs.lightSample;
+    }
+}
+
+void resvCheckValidity(inout DirectReservoir resv) 
+{
+    if (resvInvalid(resv)) 
+    {
+        resvReset(resv);
+    }
+}
+
+void resvClamp(inout DirectReservoir resv, int clamp) 
+{
+    if (resv.M > clamp) 
+    {
+        resv.weight *= float(clamp) / float(resv.M);
+        resv.M = clamp;
+    }
+}
+
 vec3 RayTraceRestirDI(Ray r)
 {
 	// Compute 1D index
@@ -101,11 +152,106 @@ vec3 RayTraceRestirDI(Ray r)
     // Hit env
     if(prd.hitT >= INFINITY)
     {
+        // Write Gbuffer
         imageStore(thisGbuffer, imageCoords, uvec4(floatBitsToUint(INFINITY), 0, 0, InvalidMatId));
+
+        // Save the motion vector
+        imageStore(motionVector, imageCoords, ivec4(0, 0, 0, 0));
+
+        // Return env radiance
+        return EnvRadiance(r.direction);
     }
 
+    // Get the shading state
+    State state = GetState(prd, r.direction);
+    GetMaterials(state, r);
 
-    vec3 res;
+    // Compute motion vector and geometry info
+    ivec2 motionIdx = createMotionIndex(state.position);
+    uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
+    imageStore(motionVector, imageCoords, ivec4(motionIdx, 0, 0));
+    imageStore(thisGbuffer, imageCoords, gInfo);
+    barrier();
+
+    if (state.isEmitter) 
+    {
+        return state.mat.emission;
+    }
+
+    vec3 wo = -r.direction;
+    vec3 direct = vec3(0.0);
+    vec3 albedo = state.mat.albedo;
+
+    // Use reservoir based direct illumination
+    DirectReservoir resv;
+    resvReset(resv);
+
+    for (int i = 0; i < rtxState.RISSampleNum; ++i)
+    {
+        // Sample direct light
+        LightSample lsample;
+        float p = SampleDirectLightNoVisibility(state.position, lsample);
+
+        // Compute target weight
+        vec3 pHat = lsample.Li * Eval(state, wo, state.ffnormal, lsample.wi, dummyPdf) * abs(dot(state.ffnormal, lsample.wi));
+        float weight = Luminance(pHat / p);
+
+        // Invalid sample
+        if (IsPdfInvalid(p) || isnan(weight)) 
+        {
+            weight = 0.0;
+        }
+
+        // Update the reservoir
+        resvUpdate(resv, lsample, weight, rand(prd.seed));
+    }
+
+    LightSample lsample = resv.lightSample;
+
+    // Generate the shadow ray to do occlusion test
+    Ray shadowRay;
+    shadowRay.origin = OffsetRay(state.position, state.ffnormal);
+    shadowRay.direction = lsample.wi;
+
+    if (Occlusion(shadowRay, state, lsample.dist)) 
+    {
+        resv.weight = 0.0;
+    }
+
+    // Temporal reuse
+    float reprojDepth = length(sceneCamera.lastPosition - state.position);
+    DirectReservoir temporalSampleResv;
+
+    // Try to find a temporal sample
+    if (findTemporalNeighbor(state.normal, prd.hitT, reprojDepth, state.matID, motionIdx, temporalSampleResv))
+    {
+        if (!resvInvalid(temporalSampleResv))
+        {
+            // Merge temporal sample into resv
+            resvMerge(resv, temporalSampleResv, rand(prd.seed));
+        }
+    }
+    
+    // Save the new reservoir
+    DirectReservoir tempResv = resv;
+    resvCheckValidity(tempResv);
+    resvClamp(tempResv, rtxState.RISSampleNum * rtxState.reservoirClamp);
+    saveNewReservoir(tempResv);
+
+    lsample = resv.lightSample;
+    if (!resvInvalid(resv))
+    {
+        // p_hat = Luminance(Li * BSDF) * cos, cos is removed as a scalar in both numerator and denominator
+        vec3 LiBsdf = lsample.Li * Eval(state, wo, state.ffnormal, lsample.wi, dummyPdf);
+        direct = LiBsdf / Luminance(LiBsdf) * resv.weight / float(resv.M);
+    }
+
+    if (isnan(direct.x) || isnan(direct.y) || isnan(direct.z)) 
+    {
+        direct = vec3(0.0);
+    }
+    vec3 res = clampRadiance(state.mat.emission + direct);
+    res = HDRToLDR(res);
     return res;
 }
 
@@ -118,5 +264,11 @@ void main()
         return;
     }
     
-    imageStore(resultImage, imageCoords, vec4(0.0f, 1.0f, 0.0f, 1.f));
+    prd.seed = tea(rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.time);
+    Ray ray = raySpawn(imageCoords, ivec2(imageRes));
+
+    vec3 radiance = RayTraceRestirDI(ray);
+    vec3 pixelColor = clampRadiance(radiance);
+
+    imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
 }

@@ -214,4 +214,9 @@ vec3 colorWheel(float x)
         return vec3(1.0, 4.0 - x / Div, 0.0);
 }
 
+float Luminance(vec3 rgb)
+{
+    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
+}
+
 #endif  // RAYCOMMON_GLSL

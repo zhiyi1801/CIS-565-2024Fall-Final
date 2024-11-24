@@ -58,6 +58,7 @@ private:
 	std::array<nvvk::Buffer, 2> m_IndexBuffer;
 	std::array<nvvk::Buffer, 2> m_CheckSumBuffer;
 	std::array<nvvk::Buffer, 2> m_CellCounter;
+	std::array<nvvk::Buffer, 2> m_DirectReservoir;
 
 	// Debug buffer
 	nvvk::Buffer m_DebugUintBuffer;
@@ -84,6 +85,9 @@ private:
 	VkPipeline m_STResamplePipeline{ VK_NULL_HANDLE };
 	VkPipeline m_FinalSamplePipeline{ VK_NULL_HANDLE };
 	VkPipeline m_FinalShadingPipeline{ VK_NULL_HANDLE };
+
+	VkPipeline m_DirectLightPipeline{ VK_NULL_HANDLE };
+
 
 	VkDeviceSize m_CellSize;
 	VkDeviceSize m_DebugBufferSize;

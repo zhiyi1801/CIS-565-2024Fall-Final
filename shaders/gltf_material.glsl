@@ -194,4 +194,54 @@ void GetMaterialsAndTextures(inout State state, in Ray r)
   state.mat.sheen     = sheen.w;
 }
 
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+void GetMaterials(inout State state, in Ray r)
+{
+    GltfShadeMaterial material = materials[state.matID];
+
+    // Uv Transform
+    mat3 TBN = mat3(state.tangent, state.bitangent, state.normal);
+
+    // Perturbating the normal if a normal map is present
+    if (material.normalTexture > -1)
+    {
+        vec3 normalVector = textureLod(texturesMap[nonuniformEXT(material.normalTexture)], state.texCoord, 0).xyz;
+        normalVector = normalize(normalVector * 2.0 - 1.0);
+        normalVector *= vec3(material.normalTextureScale, material.normalTextureScale, 1.0);
+        state.normal = normalize(TBN * normalVector);
+        state.ffnormal = dot(state.normal, r.direction) <= 0.0 ? state.normal : -state.normal;
+        CreateCoordinateSystem(state.ffnormal, state.tangent, state.bitangent);
+    }
+
+    // Emissive term
+    state.mat.emission = material.emissiveFactor;
+    if (material.emissiveTexture > -1)
+        state.mat.emission *=
+        SRGBtoLINEAR(textureLod(texturesMap[nonuniformEXT(material.emissiveTexture)], state.texCoord, 0)).rgb;
+    if ((state.mat.emission.x + state.mat.emission.y + state.mat.emission.z) > 1e-3) state.isEmitter = true;
+    else state.isEmitter = false;
+
+    // Basic material
+    // if(material.shadingModel == MATERIAL_METALLICROUGHNESS)
+    GetMetallicRoughness(state, material);
+    // else
+    //   GetSpecularGlossiness(state, material);
+
+    // Clamping roughness
+    state.mat.roughness = max(state.mat.roughness, 0.001);
+
+
+    // KHR_materials_transmission
+    state.mat.transmission = material.transmissionFactor;
+    if (material.transmissionTexture > -1)
+    {
+        state.mat.transmission *= textureLod(texturesMap[nonuniformEXT(material.transmissionTexture)], state.texCoord, 0).r;
+    }
+
+    // KHR_materials_ior
+    state.mat.ior = material.ior;
+    state.eta = dot(state.normal, state.ffnormal) > 0.0 ? (1.0 / state.mat.ior) : state.mat.ior;
+}
+
 #endif  // GLTFMATERIAL_GLSL
