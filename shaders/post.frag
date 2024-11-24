@@ -81,13 +81,13 @@ vec3 toneLocalExposure(vec3 RGB, float logAvgLum)
   for(int i = 0; i < 7; ++i)
   {
     float v1;
-    if(debugging_mode == eReSTIR)
+    if(debugging_mode == eReSTIR || debugging_mode == eHashGrid)
         v1 = luminance(texture(inImage, uvCoords * tm.zoom, i).rgb) * factor;
     if(debugging_mode == eDirectLight)
 		v1 = luminance(texture(inDirectImage, uvCoords * tm.zoom, i).rgb) * factor;
 
     float v2;
-    if(debugging_mode == eReSTIR)
+    if(debugging_mode == eReSTIR || debugging_mode == eHashGrid)
 		v2 = luminance(texture(inImage, uvCoords * tm.zoom, i + 1).rgb) * factor;
     if(debugging_mode == eDirectLight)
         v2 = luminance(texture(inDirectImage, uvCoords * tm.zoom, i + 1).rgb) * factor;
@@ -110,7 +110,7 @@ void main()
 {
   // Raw result of ray tracing
   vec4 hdr;
-  if(debugging_mode == eReSTIR)
+  if(debugging_mode == eReSTIR || debugging_mode == eHashGrid)
     hdr = texture(inImage, uvCoords * tm.zoom).rgba;
   if(debugging_mode == eDirectLight)
 	hdr = texture(inDirectImage, uvCoords * tm.zoom).rgba;
@@ -118,7 +118,7 @@ void main()
   if(((tm.autoExposure >> 0) & 1) == 1)
   {
     vec4  avg;
-    if(debugging_mode == eReSTIR)
+    if(debugging_mode == eReSTIR || debugging_mode == eHashGrid)
         avg     = textureLod(inImage, vec2(0.5), 20);  // Get the average value of the image
     if(debugging_mode == eDirectLight)
         avg     = textureLod(inDirectImage, vec2(0.5), 20);  // Get the average value of the image

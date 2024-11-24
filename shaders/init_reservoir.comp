@@ -34,6 +34,19 @@ layout(push_constant) uniform _RtxState
 //--------------------------------------------------------------------------------------------------
 //
 //
+vec3 randomColor(vec3 _in) {
+    // Generate a pseudo-random color based on the input vector
+    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
+    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
+
+    return vec3(r, g, b);
+}
+
+//
+//--------------------------------------------------------------------------------------------------
+//
+//
 // Query or Insert a cell
 int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params, ivec2 imageCoords)
 {
@@ -42,7 +55,7 @@ int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params, iv
 
     // Quantize the normal
     uint normprint = BinaryNorm(norm);
-
+    
     // Get the cell index
     uint cellIndex = pcg32(normprint + pcg32( uint( cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
 
@@ -169,6 +182,7 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
 
   data.reservoirIdx = linearIdx;
   data.inCellIdx = invalidInCellIndex;
+  data.cellIdx = invalidInCellIndex;
   data.isValid = 0;
 
   // Check if the normal is valid
@@ -177,7 +191,7 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
     // Calculate the cell size and find the cell indexI. 
     float cellSize = CalculateCellSize(pos, rtxState.cameraPos, params);
     int cellIdx = FindOrInsertCell(pos, norm, cellSize, params, imageCoords);
-
+  
     // Check if the cell is valid
     if(cellIdx != -1)
     {
@@ -196,19 +210,6 @@ HashAppendData BuildHashAppendData(vec3 pos, vec3 norm, uint linearIdx, GIParame
   }
 
   return data;
-}
-
-//
-//--------------------------------------------------------------------------------------------------
-//
-//
-vec3 randomColor(vec3 _in) {
-    // Generate a pseudo-random color based on the input vector
-    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
-    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
-
-    return vec3(r, g, b);
 }
 
 //
@@ -250,10 +251,13 @@ void main()
 
   // For Debug
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
-  // imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
+  imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
   // imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
   float cellIdxF = float(data.cellIdx % 256);
-  // imageStore(debugImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
+  if(rtxState.restirDebugMode == eHashGrid)
+  {
+    imageStore(resultImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
+  }
 
   // Set final sample
   // FinalSample finalSample;

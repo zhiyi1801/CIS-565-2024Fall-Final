@@ -163,7 +163,7 @@ void StResample(ivec2 imageCoords)
 
 	// Get the previous sample
 	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
-	imageStore(debugUintImage, imageCoords, ivec4(ivec2(motionIdx), 0, 1));
+	// imageStore(debugUintImage, imageCoords, ivec4(ivec2(motionIdx), 0, 1));
 	// If the temporal sample is valid, check the geometry
 	if(isPreValid)
 	{
