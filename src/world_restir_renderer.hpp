@@ -88,7 +88,6 @@ private:
 
 	VkPipeline m_DirectLightPipeline{ VK_NULL_HANDLE };
 
-
 	VkDeviceSize m_CellSize;
 	VkDeviceSize m_DebugBufferSize;
 };

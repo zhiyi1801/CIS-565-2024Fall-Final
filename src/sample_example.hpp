@@ -196,6 +196,7 @@ public:
   };
 
   int         m_maxFrames{100000};
+  int         m_totalFrames{ -1 };
   bool        m_showAxis{true};
   bool        m_descaling{false};
   int         m_descalingLevel{1};

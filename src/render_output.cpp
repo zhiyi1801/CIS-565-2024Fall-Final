@@ -82,6 +82,14 @@ void RenderOutput::createOffscreenRender(const VkExtent2D& size)
   {
     m_pAlloc->destroy(m_offscreenColor);
   }
+  if (m_directResult[0].image != VK_NULL_HANDLE)
+  {
+      m_pAlloc->destroy(m_directResult[0]);
+  }
+  if (m_directResult[1].image != VK_NULL_HANDLE)
+  {
+      m_pAlloc->destroy(m_directResult[1]);
+  }
 
   // Creating the color image
   {
@@ -97,6 +105,19 @@ void RenderOutput::createOffscreenRender(const VkExtent2D& size)
     sampler.maxLod                          = FLT_MAX;
     m_offscreenColor                        = m_pAlloc->createTexture(image, ivInfo, sampler);
     m_offscreenColor.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    nvvk::Image directImage1 = m_pAlloc->createImage(colorCreateInfo);
+    NAME_VK(directImage1.image);
+    nvvk::Image directImage2 = m_pAlloc->createImage(colorCreateInfo);
+    NAME_VK(directImage2.image);
+    VkImageViewCreateInfo ivInfo1 = nvvk::makeImageViewCreateInfo(directImage1.image, colorCreateInfo);
+    VkImageViewCreateInfo ivInfo2 = nvvk::makeImageViewCreateInfo(directImage2.image, colorCreateInfo);
+
+    m_directResult[0] = m_pAlloc->createTexture(directImage1, ivInfo1, sampler);
+    m_directResult[1] = m_pAlloc->createTexture(directImage2, ivInfo2, sampler);
+
+    m_directResult[0].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    m_directResult[1].descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
   }
 
   // Setting the image layout for both color and depth
@@ -104,6 +125,9 @@ void RenderOutput::createOffscreenRender(const VkExtent2D& size)
     nvvk::CommandPool genCmdBuf(m_device, m_queueIndex);
     auto              cmdBuf = genCmdBuf.createCommandBuffer();
     nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_directResult[0].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_directResult[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     genCmdBuf.submitAndWait(cmdBuf);
   }
@@ -121,7 +145,7 @@ void RenderOutput::createPostPipeline(const VkRenderPass& renderPass)
   vkDestroyPipelineLayout(m_device, m_postPipelineLayout, nullptr);
 
   // Push constants in the fragment shader
-  VkPushConstantRange pushConstantRanges{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Tonemapper)};
+  VkPushConstantRange pushConstantRanges{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstant)};
 
   // Creating the pipeline layout
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -158,26 +182,44 @@ void RenderOutput::createPostDescriptor()
   bind.addBinding({OutputBindings::eSampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT});
   bind.addBinding({OutputBindings::eStore, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
                    VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR});
+
+  bind.addBinding({ OutputBindings::eDirectSampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT });
+  bind.addBinding({ OutputBindings::eThisDirectResult, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                 VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR });
+  bind.addBinding({ OutputBindings::eLastDirectResult, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                 VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR });
+
   m_postDescSetLayout = bind.createLayout(m_device);
-  m_postDescPool      = bind.createPool(m_device);
-  m_postDescSet       = nvvk::allocateDescriptorSet(m_device, m_postDescPool, m_postDescSetLayout);
+  m_postDescPool      = bind.createPool(m_device, m_postDescSet.size());
+  m_postDescSet[0] = nvvk::allocateDescriptorSet(m_device, m_postDescPool, m_postDescSetLayout);
+  m_postDescSet[1] = nvvk::allocateDescriptorSet(m_device, m_postDescPool, m_postDescSetLayout);
 
   std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(bind.makeWrite(m_postDescSet, OutputBindings::eSampler, &m_offscreenColor.descriptor));  // This is use by the tonemapper
-  writes.emplace_back(bind.makeWrite(m_postDescSet, OutputBindings::eStore, &m_offscreenColor.descriptor));  // This will be used by the ray trace to write the image
+
+  for (int i = 0; i < 2; i++) {
+      writes.emplace_back(bind.makeWrite(m_postDescSet[i], OutputBindings::eSampler, &m_offscreenColor.descriptor));  // This is use by the tonemapper
+      writes.emplace_back(bind.makeWrite(m_postDescSet[i], OutputBindings::eStore, &m_offscreenColor.descriptor));  // This will be used by the ray trace to write the image
+      writes.emplace_back(bind.makeWrite(m_postDescSet[i], OutputBindings::eDirectSampler, &m_directResult[i].descriptor));
+      writes.emplace_back(bind.makeWrite(m_postDescSet[i], OutputBindings::eThisDirectResult, &m_directResult[i].descriptor));
+      writes.emplace_back(bind.makeWrite(m_postDescSet[i], OutputBindings::eLastDirectResult, &m_directResult[!i].descriptor));
+
+      vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  }
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Draw a full screen quad with the attached image
 //
-void RenderOutput::run(VkCommandBuffer cmdBuf)
+void RenderOutput::run(VkCommandBuffer cmdBuf, const RtxState& state, int frames)
 {
   LABEL_SCOPE_VK(cmdBuf);
+  m_push.debugging_mode = state.restirDebugMode;
+  m_push.tm = this->m_tonemapper;
 
-  vkCmdPushConstants(cmdBuf, m_postPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Tonemapper), &m_tonemapper);
+  vkCmdPushConstants(cmdBuf, m_postPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstant), &m_push);
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postPipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postPipelineLayout, 0, 1, &m_postDescSet, 0, nullptr);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postPipelineLayout, 0, 1, &m_postDescSet[(frames + 1) % 2], 0, nullptr);
   vkCmdDraw(cmdBuf, 3, 1, 0, 0);
 }
 

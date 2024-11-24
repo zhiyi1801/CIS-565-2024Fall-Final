@@ -34,6 +34,11 @@
 class RenderOutput
 {
 public:
+    struct PushConstant {
+        Tonemapper tm;
+        int debugging_mode;
+    } m_push;
+
   Tonemapper m_tonemapper{
       .brightness     = 1.0f,
       .contrast       = 1.0f,
@@ -53,11 +58,11 @@ public:
   void destroy();
   void create(const VkExtent2D& size, const VkRenderPass& renderPass);
   void update(const VkExtent2D& size);
-  void run(VkCommandBuffer cmdBuf);
+  void run(VkCommandBuffer cmdBuf, const RtxState& state, int frames);
   void genMipmap(VkCommandBuffer cmdBuf);
 
   VkDescriptorSetLayout getDescLayout() { return m_postDescSetLayout; }
-  VkDescriptorSet       getDescSet() { return m_postDescSet; }
+  VkDescriptorSet       getDescSet(int frames) { return m_postDescSet[(frames + 1) % 2]; }
 
 private:
   void createOffscreenRender(const VkExtent2D& size);
@@ -66,10 +71,11 @@ private:
 
   VkDescriptorPool      m_postDescPool{VK_NULL_HANDLE};
   VkDescriptorSetLayout m_postDescSetLayout{VK_NULL_HANDLE};
-  VkDescriptorSet       m_postDescSet{VK_NULL_HANDLE};
+  std::array<VkDescriptorSet, 2> m_postDescSet{ VK_NULL_HANDLE };
   VkPipeline            m_postPipeline{VK_NULL_HANDLE};
   VkPipelineLayout      m_postPipelineLayout{VK_NULL_HANDLE};
   nvvk::Texture         m_offscreenColor;
+  std::array<nvvk::Texture, 2>         m_directResult;
   //VkFormat m_offscreenColorFormat{VkFormat::eR16G16B16A16Sfloat};  // Darkening the scene over 5000 iterations
   VkFormat m_offscreenColorFormat{VK_FORMAT_R32G32B32A32_SFLOAT};
   VkFormat m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};  // Will be replaced by best supported format

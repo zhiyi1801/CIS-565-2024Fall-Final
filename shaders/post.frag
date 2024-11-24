@@ -37,10 +37,11 @@ layout(location = 0) in vec2 uvCoords;
 layout(location = 0) out vec4 fragColor;
 
 layout(set = 0, binding = 0) uniform sampler2D inImage;
+layout(set = 0, binding = 2) uniform sampler2D inDirectImage;
 
-layout(push_constant) uniform _Tonemapper
-{
+layout(push_constant) uniform _PushConstant {
   Tonemapper tm;
+  int debugging_mode;
 };
 
 // http://www.thetenthplanet.de/archives/5367
@@ -79,8 +80,18 @@ vec3 toneLocalExposure(vec3 RGB, float logAvgLum)
   float scale[7] = float[7](1, 2, 4, 8, 16, 32, 64);
   for(int i = 0; i < 7; ++i)
   {
-    float v1 = luminance(texture(inImage, uvCoords * tm.zoom, i).rgb) * factor;
-    float v2 = luminance(texture(inImage, uvCoords * tm.zoom, i + 1).rgb) * factor;
+    float v1;
+    if(debugging_mode == eReSTIR)
+        v1 = luminance(texture(inImage, uvCoords * tm.zoom, i).rgb) * factor;
+    if(debugging_mode == eDirectLight)
+		v1 = luminance(texture(inDirectImage, uvCoords * tm.zoom, i).rgb) * factor;
+
+    float v2;
+    if(debugging_mode == eReSTIR)
+		v2 = luminance(texture(inImage, uvCoords * tm.zoom, i + 1).rgb) * factor;
+    if(debugging_mode == eDirectLight)
+        v2 = luminance(texture(inDirectImage, uvCoords * tm.zoom, i + 1).rgb) * factor;
+
     if(abs(v1 - v2) / ((tm.key * pow(2, phi) / (scale[i] * scale[i])) + v1) > epsilon)
     {
       La = v1;
@@ -98,11 +109,20 @@ vec3 toneLocalExposure(vec3 RGB, float logAvgLum)
 void main()
 {
   // Raw result of ray tracing
-  vec4 hdr = texture(inImage, uvCoords * tm.zoom).rgba;
+  vec4 hdr;
+  if(debugging_mode == eReSTIR)
+    hdr = texture(inImage, uvCoords * tm.zoom).rgba;
+  if(debugging_mode == eDirectLight)
+	hdr = texture(inDirectImage, uvCoords * tm.zoom).rgba;
 
   if(((tm.autoExposure >> 0) & 1) == 1)
   {
-    vec4  avg     = textureLod(inImage, vec2(0.5), 20);  // Get the average value of the image
+    vec4  avg;
+    if(debugging_mode == eReSTIR)
+        avg     = textureLod(inImage, vec2(0.5), 20);  // Get the average value of the image
+    if(debugging_mode == eDirectLight)
+        avg     = textureLod(inDirectImage, vec2(0.5), 20);  // Get the average value of the image
+
     float avgLum2 = luminance(avg.rgb);                  // Find the luminance
     if(((tm.autoExposure >> 1) & 1) == 1)
       hdr.rgb = toneLocalExposure(hdr.rgb, avgLum2);  // Adjust exposure

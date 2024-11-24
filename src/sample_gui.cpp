@@ -146,6 +146,12 @@ bool SampleGUI::guiRayTracing()
 
   changed |= GuiH::Selection("Pbr Mode", "PBR material model", &rtxState.pbrMode, nullptr, Normal, {"Disney", "Gltf"});
 
+  changed |= GuiH::Selection("ReSTIR Debug Mode", "Display unique values of material", &rtxState.restirDebugMode, nullptr, Normal,
+      {
+          "No Debug",
+          "Direct Light",
+          "Hash Grid"
+      });
 
   static bool bAnyHit = true;
   if(_se->m_rndMethod == SampleExample::RndMethod::eRtxPipeline)

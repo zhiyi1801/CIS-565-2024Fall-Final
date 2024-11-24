@@ -37,6 +37,8 @@
 layout(set = S_ACCEL, binding = eTlas)					uniform accelerationStructureEXT topLevelAS;
 //
 layout(set = S_OUT,   binding = eStore)					uniform image2D			resultImage;
+layout(set = S_OUT, binding = eThisDirectResult)   uniform image2D thisDirectResultImage;
+layout(set = S_OUT, binding = eLastDirectResult)   uniform readonly image2D lastDirectResultImage;
 //
 layout(set = S_SCENE, binding = eInstData, scalar)   buffer _InstanceInfo { InstanceData geoInfo[]; };
 layout(set = S_SCENE, binding = eCamera, scalar)   uniform _SceneCamera{ SceneCamera sceneCamera; };

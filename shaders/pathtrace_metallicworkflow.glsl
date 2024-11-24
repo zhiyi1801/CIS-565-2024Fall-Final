@@ -33,7 +33,7 @@ vec3 Eval(State state, vec3 V, vec3 N, vec3 L, inout float pdf) {
 }
 
 vec3 Sample(State state, vec3 V, vec3 N, inout vec3 L, inout float pdf, inout RngStateType seed) {
-    return metallicWorkflowSample(state, N, V, L, pdf, seed);
+    return metallicWorkflowSample(state, N, V, vec3(rand(seed), rand(seed), rand(seed)), L, pdf);
 }
 
 vec3 EnvRadiance(vec3 dir) {
