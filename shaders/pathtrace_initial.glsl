@@ -322,7 +322,6 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
     vec3 sampleWi;
     vec3 sampleBSDF;
     Material lastMaterial;
-    bool validPath = false;
 
     for (int depth = 0; depth < rtxState.maxDepth; depth++)
     {
@@ -362,7 +361,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
         // Transfer normal to a uint
         uint normprint = BinaryNorm(state.ffnormal);
 
-		// for debugging
+        // for debugging
         //return vec3(float(cellIndex
 
         // Flag shows if it is the reconnect vertex
@@ -370,18 +369,17 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
         if (connectabele)
         {
-            validPath = true;
-			// If hit the scene, record the vertex position and normal
+            // If hit the scene, record the vertex position and normal
             if (prd.hitT != INFINITY)
             {
                 pathState.rcVertexPos = state.position;
                 pathState.rcVertexNorm = state.ffnormal;
             }
             else
-			{
+            {
                 pathState.rcEnvDir = r.direction;
-				pathState.rcEnv = 1;
-			}
+                pathState.rcEnv = 1;
+            }
             pathState.thp = vec3(1.0f);
         }
 
@@ -440,7 +438,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
             float MIS_weight = ((depth == 0 /*|| lastMaterial.transmission == 0*/) ? 1.0f : powerHeuristic(samplePdf, lightPdf));
 
-			pathState.radiance += Li * throughput * MIS_weight;
+            pathState.radiance += Li * throughput * MIS_weight;
             if (pathState.currentVertexIndex < pathState.rcVertexLength)
             {
                 vec3 thp = pathState.prefixThp;
@@ -512,22 +510,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             }
         }
 
-        if (pathState.currentVertexIndex < pathState.rcVertexLength)
-        {
-            // Pack the hit info of the prev vertex
-            // pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
-
-            // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
-            pathState.preRcVertexWo = wo;
-
-            // Record the position of the prev vertex
-            pathState.preRcVertexPos = state.position;
-
-            // Record the face normal of the prev vertex
-            pathState.preRcVertexNorm = state.ffnormal;
-        }
-
-		// Sample Next Ray
+        // Sample Next Ray
         {
             // Sample next ray according to BSDF
             sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
@@ -564,17 +547,14 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
                 pathState.preRcVertexWo = wo;
 
-				// Record the position of the prev vertex
-				pathState.preRcVertexPos = state.position;
+                // Record the position of the prev vertex
+                pathState.preRcVertexPos = state.position;
 
                 // Record the face normal of the prev vertex
                 pathState.preRcVertexNorm = state.ffnormal;
 
-				// Record the pdf from the prev vertex to the reconnect vertex
+                // Record the pdf from the prev vertex to the reconnect vertex
                 pathState.pdf = samplePdf;
-
-				// Record the material ID of the prev vertex
-				pathState.preRcMatId = int(state.matID);
 
                 // Record the wi on the prev vertex
                 pathState.preRcVertexWi = sampleWi;
@@ -596,10 +576,10 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 pathState.thp *= bsdfCosWeight;
             }
 
-			// Cache the bsdfCosWeight from the prev vertex to reconnect vertex
+            // Cache the bsdfCosWeight from the prev vertex to reconnect vertex
             if (pathState.currentVertexIndex + 1 == pathState.rcVertexLength)
             {
-				pathState.cacheBsdfCosWeight = bsdfCosWeight;
+                pathState.cacheBsdfCosWeight = bsdfCosWeight;
                 // pathState.cacheBsdfCosWeight = sampleBSDF;
             }
 
@@ -611,13 +591,13 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             lastMaterial = state.mat;
         }
 
-		// Russian Roulette
+        // Russian Roulette
         {
 #if RR
-			// If next vertex is the reconnect vertex, do not terminate the path
+            // If next vertex is the reconnect vertex, do not terminate the path
             bool nextReconnect = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex + 1 == pathState.rcVertexLength);
             // For Russian-Roulette (minimizing live state)
-            float rrPcont = ((depth >= RR_DEPTH) && !validPath) ?
+            float rrPcont = ((depth >= RR_DEPTH) && !nextReconnect) ?
                 min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
                 1.0;
             if (rand(prd.seed) >= rrPcont)
@@ -625,18 +605,6 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 break;                // paths with low throughput that won't contribute
             }
             throughput /= rrPcont;  // boost the energy of the non-terminated paths
-            // If the vertex is in the prefix path
-            if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
-            {
-                // Update prefix throughput
-                pathState.prefixThp /= rrPcont;
-            }
-            // If the vertex is in the reconnect path
-            else
-            {
-                // Accumulate reconnect throughput
-                pathState.thp /= rrPcont;
-            }
 #endif
         }
     }
@@ -660,32 +628,32 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     vec3 pixelColor = vec3(0);
 
 
- //   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
- //   vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
+    //   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
+    //   vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
 
- //   // Compute sampling position between [-1 .. 1]
- //   const vec2 pixelCenter = vec2(imageCoords) /*+ subpixel_jitter*/;
- //   const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
- //   vec2       d = inUV * 2.0 - 1.0;
+    //   // Compute sampling position between [-1 .. 1]
+    //   const vec2 pixelCenter = vec2(imageCoords) /*+ subpixel_jitter*/;
+    //   const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
+    //   vec2       d = inUV * 2.0 - 1.0;
 
- //   // Compute ray origin and direction
- //   vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
- //   vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
- //   vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
+    //   // Compute ray origin and direction
+    //   vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
+    //   vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
+    //   vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
 
- //   // Depth-of-Field
- //   vec3  focalPoint = sceneCamera.focalDist * direction.xyz;
- //   float cam_r1 = rand(prd.seed) * M_TWO_PI;
- //   float cam_r2 = rand(prd.seed) * sceneCamera.aperture;
- //   vec4  cam_right = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
- //   vec4  cam_up = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
- //   vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
- //   vec3  finalRayDir = normalize(focalPoint - randomAperturePos);
+    //   // Depth-of-Field
+    //   vec3  focalPoint = sceneCamera.focalDist * direction.xyz;
+    //   float cam_r1 = rand(prd.seed) * M_TWO_PI;
+    //   float cam_r2 = rand(prd.seed) * sceneCamera.aperture;
+    //   vec4  cam_right = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
+    //   vec4  cam_up = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
+    //   vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
+    //   vec3  finalRayDir = normalize(focalPoint - randomAperturePos);
 
-	//// Cancle the depth-of-field effect
-	//finalRayDir = normalize(direction.xyz);
- //   Ray ray = Ray(origin.xyz, finalRayDir);
- //   // Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
+       //// Cancle the depth-of-field effect
+       //finalRayDir = normalize(direction.xyz);
+    //   Ray ray = Ray(origin.xyz, finalRayDir);
+    //   // Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
 
     Ray ray = raySpawn(imageCoords, ivec2(sizeImage));
 
@@ -698,15 +666,14 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.prefixPathRadiance = vec3(0.0f, 0.0f, 0.0f);
     pathState.rcVertexRadiance = vec3(0.0f, 0.0f, 0.0f);
     pathState.rcEnv = 0;
-	pathState.rcEnvDir = vec3(0.0f, 0.0f, 0.0f);
+    pathState.rcEnvDir = vec3(0.0f, 0.0f, 0.0f);
     pathState.pdf = 0.0f;
     pathState.cacheBsdfCosWeight = vec3(0);
 
     pathState.rcVertexPos = vec3(0.0f);
-    pathState.rcVertexNorm = vec3(1.2f);
+    pathState.rcVertexNorm = vec3(0.0f);
     pathState.preRcVertexPos = vec3(0.0f);
     pathState.preRcVertexNorm = vec3(0.0f);
-    pathState.preRcMatId = -1;
 
     pathState.validRcPath = 0;
 
@@ -716,22 +683,21 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     vec3 radiance = PathTrace_Initial(ray, pathState);
 
     // Assign reconnect data
-	reconnectionDataBuffer[idx].pathPreThp = pathState.prefixThp;
-	reconnectionDataBuffer[idx].pathLength = pathState.rcVertexLength;
-	reconnectionDataBuffer[idx].pathPreRadiance = pathState.prefixPathRadiance;
+    reconnectionDataBuffer[idx].pathPreThp = pathState.prefixThp;
+    reconnectionDataBuffer[idx].pathLength = pathState.rcVertexLength;
+    reconnectionDataBuffer[idx].pathPreRadiance = pathState.prefixPathRadiance;
     reconnectionDataBuffer[idx].preRcVertexWo = pathState.preRcVertexWo;
     reconnectionDataBuffer[idx].preRcVertexHitInfo = pathState.preRcVertexHitInfo;
 
     // Assign initialSample
-	initialSampleBuffer[idx].rcVertexLo = pathState.rcVertexRadiance;
+    initialSampleBuffer[idx].rcVertexLo = pathState.rcVertexRadiance;
     initialSampleBuffer[idx].rcVertexPos = pathState.rcVertexPos;
     initialSampleBuffer[idx].rcVertexNorm = pathState.rcVertexNorm;
     initialSampleBuffer[idx].preRcVertexPos = pathState.preRcVertexPos;
     initialSampleBuffer[idx].preRcVertexNorm = pathState.preRcVertexNorm;
-	initialSampleBuffer[idx].pdf = pathState.pdf;
-	initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
-	initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
-	initialSampleBuffer[idx].preRcMatId = pathState.preRcMatId;
+    initialSampleBuffer[idx].pdf = pathState.pdf;
+    initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
+    initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
@@ -743,17 +709,17 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
 
     // Removing fireflies
     lum = dot(pathState.prefixPathRadiance, vec3(0.212671f, 0.715160f, 0.072169f));
-	if (lum > rtxState.fireflyClampThreshold)
-	{
-		pathState.prefixPathRadiance *= rtxState.fireflyClampThreshold / lum;
-	}
+    if (lum > rtxState.fireflyClampThreshold)
+    {
+        pathState.prefixPathRadiance *= rtxState.fireflyClampThreshold / lum;
+    }
 
     // Removing fireflies
-	lum = dot(pathState.rcVertexRadiance, vec3(0.212671f, 0.715160f, 0.072169f));
-	if (lum > rtxState.fireflyClampThreshold)
-	{
-		pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
-	}
+    lum = dot(pathState.rcVertexRadiance, vec3(0.212671f, 0.715160f, 0.072169f));
+    if (lum > rtxState.fireflyClampThreshold)
+    {
+        pathState.rcVertexRadiance *= rtxState.fireflyClampThreshold / lum;
+    }
 
     // return initialSampleBuffer[idx].preRcVertexPos;
 
@@ -768,7 +734,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     // 
 
     // return pathState.cacheBsdfCosWeight * pathState.pdf;
-    // return radiance;
+    return radiance;
     // return (initialSampleBuffer[idx].preRcVertexNorm + 1.0f) / 2.0f;
     // return pathState.radiance;
     // return pathState.rcVertexRadiance;
