@@ -8,6 +8,7 @@
 #include "tools.hpp"
 #include <spirv_cross/spirv_cross.hpp>
 #include <iostream>
+#include <OpenImageDenoise/oidn.hpp>
 
 #include "autogen/pathtrace.comp.h"
 #include "autogen/pathtrace.rahit.h"
@@ -23,6 +24,24 @@
 #include "autogen/build_hash_grid.comp.h"
 #include "autogen/scan_cell.comp.h"
 #include "autogen/scan_validate.comp.h"
+
+void* WorldRestirRenderer::mapBuffer(const nvvk::Buffer& buffer)
+{
+	void* data = nullptr;
+
+	//VkResult result = m_pAlloc->map(buffer, &data);
+	//if (result != VK_SUCCESS)
+	{
+		std::cerr << "Failed to map buffer!" << std::endl;
+		return nullptr;
+	}
+	return data;
+}
+
+void WorldRestirRenderer::unmapBuffer(const nvvk::Buffer& buffer)
+{
+	m_pAlloc->unmap(buffer);
+}
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -42,7 +61,27 @@ void WorldRestirRenderer::setup(const VkDevice& device, const VkPhysicalDevice& 
 }
 
 void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
-{
+{	
+
+#if USE_OIDN
+	oidn_device = oidn::newDevice(oidn::DeviceType::CPU);
+	oidn_device.commit();
+
+	oidn_filter = oidn_device.newFilter("RT");
+	oidn_filter.set("hdr", true);  // If using HDR
+	oidn_filter.set("cleanAux", true);
+	oidn_filter.set("quality", OIDN_QUALITY_FAST);
+	//oidn_filter.set("maxMemoryMB", 3000);
+
+	const char* errorMessage = nullptr;
+	oidn::Error error = oidn_device.getError(errorMessage);
+	if (error != oidn::Error::None)
+	{
+		std::cerr << "OIDN create Error: " << errorMessage << std::endl;
+	}
+	std::cout << "OIDN initialized successfully!" << std::endl;
+
+#endif
 	m_CellSize = cellSizeNoHash * 32;
 	m_DebugBufferSize = 1000;
 	m_size = size;
@@ -93,7 +132,31 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 	m_ScanCellValidationPipeline = createComputePipeline(m_device, createInfo, scan_validate_comp, sizeof(scan_validate_comp));
 	m_debug.setObjectName(m_ScanCellPipeline, "Scan Cell Validate");
 
-	timer.print();
+	//// Initialize FSR 3.1 API
+	//ffxCreateContextDescUpscale createFsr{};
+	//createFsr.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE;
+	//createFsr.header.pNext = NULL;
+	//createFsr.maxRenderSize.width = size.width;
+	//createFsr.maxRenderSize.height = size.height;
+	//createFsr.maxUpscaleSize.width = 960.f;   
+	//createFsr.maxUpscaleSize.height = 540.f; 
+	//createFsr.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE;
+
+	//ffxCreateBackendVKDesc backendDesc = {};
+	//backendDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_VK;
+	//backendDesc.header.pNext = NULL;
+	//backendDesc.vkDevice = m_device; 
+	////backendDesc.vkPhysicalDevice = m_physicalDevice; 
+	//backendDesc.vkDeviceProcAddr = vkGetDeviceProcAddr;
+
+	//createFsr.header.pNext = &backendDesc.header;
+
+	//ffxReturnCode_t retCode = ffxCreateContext(&m_UpscalingContext, &createFsr.header, NULL);
+	//if (retCode != FFX_API_RETURN_OK) {
+	//	printf("Failed to create FFX context. Error code: %d\n", retCode);
+	//}
+
+	//timer.print();
 }
 
 void WorldRestirRenderer::update(const VkExtent2D& size)
@@ -149,7 +212,10 @@ void WorldRestirRenderer::destroy()
 	m_pAlloc->destroy(m_CheckSumBuffer[1]);
 	m_pAlloc->destroy(m_CellCounter[0]);
 	m_pAlloc->destroy(m_CellCounter[1]);
-
+#if USE_OIDN
+	m_pAlloc->destroy(m_albedoImage);
+	m_pAlloc->destroy(m_normalImage);
+#endif
 	vkFreeDescriptorSets(m_device, m_descPool, static_cast<uint32_t>(m_descSet.size()), m_descSet.data());
 	vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_descSetLayout, nullptr);
@@ -172,6 +238,8 @@ void WorldRestirRenderer::destroy()
 	m_GbufferPipeline = VK_NULL_HANDLE;
 	m_InitialSamplePipeline = VK_NULL_HANDLE;
 	m_BuildHashGridPipeline = VK_NULL_HANDLE;
+
+	//ffxDestroyContext(&m_UpscalingContext, NULL);
 }
 
 void WorldRestirRenderer::createBuffer()
@@ -248,6 +316,28 @@ void WorldRestirRenderer::createImage()
 
 		m_DebugUintImage = m_pAlloc->createTexture(DebugUintImage, ivInfoUintDebug);
 		m_DebugUintImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+#if USE_OIDN
+		auto albedoImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, VK_FORMAT_R32G32B32A32_SFLOAT,  // Float format
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, true);
+
+		nvvk::Image albedoImage = m_pAlloc->createImage(albedoImageCreateInfo);
+		NAME_VK(albedoImage.image);
+		VkImageViewCreateInfo albedoIVInfo = nvvk::makeImageViewCreateInfo(albedoImage.image, albedoImageCreateInfo);
+		m_albedoImage = m_pAlloc->createTexture(albedoImage, albedoIVInfo);
+		m_albedoImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		auto normalImageCreateInfo = nvvk::makeImage2DCreateInfo(
+			m_size, VK_FORMAT_R32G32B32A32_SFLOAT,  // Float format
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, true);
+
+		nvvk::Image normalImage = m_pAlloc->createImage(normalImageCreateInfo);
+		NAME_VK(normalImage.image);
+		VkImageViewCreateInfo normalIVInfo = nvvk::makeImageViewCreateInfo(normalImage.image, normalImageCreateInfo);
+		m_normalImage = m_pAlloc->createTexture(normalImage, normalIVInfo);
+		m_normalImage.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+#endif
 	}
 
 	// Setting the image layout for both color and depth
@@ -258,6 +348,11 @@ void WorldRestirRenderer::createImage()
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_gbuffer[1].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		nvvk::cmdBarrierImageLayout(cmdBuf, m_DebugUintImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+#if USE_OIDN
+		//  Transform the layout of albedo and normal images
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_albedoImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+		nvvk::cmdBarrierImageLayout(cmdBuf, m_normalImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+#endif
 		genCmdBuf.submitAndWait(cmdBuf);
 	}
 }
@@ -290,6 +385,10 @@ void WorldRestirRenderer::createDescriptorSet()
 	// Debug buffers
 	m_bind.addBinding({ ReSTIRBindings::eDebugUintBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eDebugFloatBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+#if USE_OIDN 1
+	m_bind.addBinding({ ReSTIRBindings::eAlbedoImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eNormalImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, flag });
+#endif
 
 	m_descPool = m_bind.createPool(m_device, m_descSet.size(), VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
 	CREATE_NAMED_VK(m_descSetLayout, m_bind.createLayout(m_device));
@@ -301,7 +400,11 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
+#if USE_OIDN
+	std::array<VkWriteDescriptorSet, 19> writes;
+#else
 	std::array<VkWriteDescriptorSet, 17> writes;
+#endif
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
@@ -345,7 +448,10 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo debugFloatBufInfo = { m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float) };
 		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
 		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
-
+#if USE_OIDN
+		writes[17] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAlbedoImage, &m_albedoImage.descriptor);
+		writes[18] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eNormalImage, &m_normalImage.descriptor);
+#endif
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}
 }
@@ -556,6 +662,115 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	InsertPerfMarker(cmdBuf, "Compute Shader: Build Hash Grid", color[(count++) % 3]);
 	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_BuildHashGridPipeline);
 	vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
-
 	EndPerfMarker(cmdBuf);
+
+
+
+#if USE_OIDN
+	InsertPerfMarker(cmdBuf, "Open Image Denoiser", color[(count++) % 3]);
+	runOIDN(cmdBuf, size, profiler, descSets, frames);
+	EndPerfMarker(cmdBuf);
+#endif // USE_OIDN
+	
+}
+
+void WorldRestirRenderer::runOIDN(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames) {
+	
+	// 1. Define the required size and flags
+	VkDeviceSize imageSize = size.width * size.height * 4 * sizeof(float); // Assume 4 floats per pixel (RGBA32F)
+
+	VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+	// 2. Create a CPU accessible buffer
+	nvvk::Buffer colorBuffer = m_pAlloc->createBuffer(imageSize, usageFlags, memoryPropertyFlags);
+	nvvk::Buffer albedoBuffer = m_pAlloc->createBuffer(imageSize, usageFlags, memoryPropertyFlags);
+	nvvk::Buffer normalBuffer = m_pAlloc->createBuffer(imageSize, usageFlags, memoryPropertyFlags);
+
+	// 3. Create a command buffer
+	nvvk::CommandPool cmdPool(m_device, m_queueIndex);
+	VkCommandBuffer copyCmdBuf = cmdPool.createCommandBuffer();
+
+	// 4. Change the image layout to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_albedoImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_normalImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+	// 5. Copy from image to buffer
+	VkBufferImageCopy region = {};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0; // Tightly packed
+	region.bufferImageHeight = 0;
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = { size.width, size.height, 1 };
+
+	vkCmdCopyImageToBuffer(copyCmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, colorBuffer.buffer, 1, &region);
+	vkCmdCopyImageToBuffer(copyCmdBuf, m_albedoImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, albedoBuffer.buffer, 1, &region);
+	vkCmdCopyImageToBuffer(copyCmdBuf, m_normalImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, normalBuffer.buffer, 1, &region);
+
+	// 6. Change the image layout back to VK_IMAGE_LAYOUT_GENERAL
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_albedoImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+	nvvk::cmdBarrierImageLayout(copyCmdBuf, m_normalImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+	// 7. Submit and wait for the copy command
+	cmdPool.submitAndWait(copyCmdBuf);
+
+	// 8. Map the buffer and get the pointer
+	void* colorData = m_pAlloc->map(colorBuffer);
+	void* albedoData = m_pAlloc->map(albedoBuffer);
+	void* normalData = m_pAlloc->map(normalBuffer);
+
+
+
+	// 9. Setup and execute the OIDN filter
+	oidn_filter.setImage("color", colorData, oidn::Format::Float3, size.width, size.height);
+	oidn_filter.setImage("albedo", albedoData, oidn::Format::Float3, size.width, size.height);
+	oidn_filter.setImage("normal", normalData, oidn::Format::Float3, size.width, size.height);
+	oidn_filter.setImage("output", colorData, oidn::Format::Float3, size.width, size.height); 
+
+	oidn_filter.commit();
+
+	auto start = std::chrono::high_resolution_clock::now();
+	oidn_filter.execute();
+
+	auto end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = end - start;
+	std::cout << "Task duration: " << elapsed.count() << " seconds" << std::endl;
+
+	// 10. Check for errors
+	const char* errorMessage = nullptr;
+	oidn::Error error = oidn_device.getError(errorMessage);
+	if (error != oidn::Error::None)
+	{
+		std::cerr << "OIDN Running Error: " << errorMessage << std::endl;
+	}
+
+	// 11. Unmap the buffer
+	m_pAlloc->unmap(colorBuffer);
+	m_pAlloc->unmap(albedoBuffer);
+	m_pAlloc->unmap(normalBuffer);
+
+	// 12. Copy the processed data back to the GPU image
+	VkCommandBuffer copyBackCmdBuf = cmdPool.createCommandBuffer();
+
+	// Change the image layout to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	nvvk::cmdBarrierImageLayout(copyBackCmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	// Copy from buffer to image
+	vkCmdCopyBufferToImage(copyBackCmdBuf, colorBuffer.buffer, m_gbuffer[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	//  Change the image layout back to VK_IMAGE_LAYOUT_GENERAL
+	nvvk::cmdBarrierImageLayout(copyBackCmdBuf, m_gbuffer[0].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+	cmdPool.submitAndWait(copyBackCmdBuf);
+
+	// 13. Destroy the buffer
+	m_pAlloc->destroy(colorBuffer);
+	m_pAlloc->destroy(albedoBuffer);
+	m_pAlloc->destroy(normalBuffer);
 }

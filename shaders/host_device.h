@@ -23,9 +23,11 @@
 */
 
 
+
 #ifndef COMMON_HOST_DEVICE
 #define COMMON_HOST_DEVICE
 
+#define USE_OIDN 1
 
 #ifdef __cplusplus
 #include <stdint.h>
@@ -109,7 +111,9 @@ eIndexTemp = 12,
 eDebugUintImage = 15,
 eDebugImage = 16,
 eDebugUintBuffer = 17,
-eDebugFloatBuffer = 18
+eDebugFloatBuffer = 18,
+eAlbedoImage = 19,
+eNormalImage = 20
 END_ENUM();
 
 START_ENUM(DebugMode)

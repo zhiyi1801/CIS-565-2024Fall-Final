@@ -142,6 +142,7 @@ void main()
   vec2 uv = ((uvCoords * tm.renderingRatio) - 0.5) * 2.0;
   color *= 1.0 - dot(uv, uv) * tm.vignette;
 
+  //fragColor.xyz = hdr.xyz;
   fragColor.xyz = color;
   fragColor.a   = hdr.a;
 }

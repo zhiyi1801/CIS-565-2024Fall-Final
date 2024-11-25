@@ -25,6 +25,9 @@
 #include "shaders/host_device.h"
 
 #include "ffx_api/vk/ffx_api_vk.hpp"
+#include "ffx_api/ffx_upscale.hpp"
+
+#include <OpenImageDenoise/oidn.h>
 // Forward declaration
 class Scene;
 

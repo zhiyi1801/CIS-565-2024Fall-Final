@@ -8,7 +8,7 @@
 
 #include "renderer.h"
 #include "shaders/host_device.h"
-
+#include <OpenImageDenoise/oidn.hpp>
 using nvvk::SBTWrapper;
 
 class WorldRestirRenderer : public Renderer
@@ -18,6 +18,7 @@ public:
 	void destroy() override;
 	void create(const VkExtent2D& size, std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* _scene = nullptr) override;
 	void run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames) override;
+	void runOIDN(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, std::vector<VkDescriptorSet>& descSets, uint frames);
 	void update(const VkExtent2D& size);
 	void createBuffer();
 	void createImage();
@@ -30,7 +31,20 @@ public:
 
 	void cellScan(const VkCommandBuffer& cmdBuf, const int frames);
 
+	void* mapBuffer(const nvvk::Buffer& buffer);
+	void unmapBuffer(const nvvk::Buffer& buffer);
+
+	oidn::DeviceRef oidn_device;
+	oidn::FilterRef oidn_filter;
 private:
+
+	ffxContext m_UpscalingContext = {};
+	float m_JitterX = 0.0f;
+	float m_JitterY = 0.0f;
+	int32_t m_JitterIndex = 0;
+
+	bool m_ResetUpscale = false;
+
 	nvvk::ResourceAllocator* m_pAlloc{ nullptr };  // Allocator for buffer, images, acceleration structures
 	nvvk::DebugUtil          m_debug;            // Utility to name objects
 	VkDevice                 m_device{ VK_NULL_HANDLE };
@@ -44,6 +58,9 @@ private:
 	std::array<nvvk::Texture, 2> m_gbuffer;
 	nvvk::Texture m_DebugImage;
 	nvvk::Texture m_DebugUintImage;
+
+	nvvk::Texture m_albedoImage;
+	nvvk::Texture m_normalImage;
 
 	nvvk::Buffer m_InitialReservoir;
 	nvvk::Buffer m_AppendBuffer;

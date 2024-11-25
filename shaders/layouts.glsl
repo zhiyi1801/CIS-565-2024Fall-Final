@@ -70,6 +70,10 @@ layout(set = S_RESTIR, binding = eDebugImage)						uniform image2D			debugImage;
 layout(set = S_RESTIR, binding = eDebugUintBuffer)					buffer _DebugUintBuffer { uint debugUintBuffer[]; };
 layout(set = S_RESTIR, binding = eDebugFloatBuffer)					buffer _DebugFloatBuffer { uint debugFloatBuffer[]; };
 
+#if USE_OIDN
+layout(set = S_RESTIR, binding = eAlbedoImage) uniform image2D albedoImage;
+layout(set = S_RESTIR, binding = eNormalImage) uniform image2D normalImage;
+#endif
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };
 

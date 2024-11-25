@@ -102,9 +102,18 @@ void traceGbuffer(Ray r)
     }
     State state = GetState(prd, r.direction);
     GetMaterialsAndTextures(state, r);
-
+#if USE_OIDN 
+    
     uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
     imageStore(thisGbuffer, imageCoords, gInfo);
+
+    imageStore(albedoImage, imageCoords, vec4(state.mat.albedo, 1.f));
+    imageStore(normalImage, imageCoords, vec4(state.normal, 1.f));
+#else
+// If not use OIDN, encode GeometryInfo
+    uvec4 gInfo = encodeGeometryInfo(state, prd.hitT);
+    imageStore(thisGbuffer, imageCoords, gInfo);
+#endif
 }
 
 //
@@ -126,4 +135,5 @@ void main()
 
   Ray ray = raySpawn(imageCoords, ivec2(imageRes));
   traceGbuffer(ray);
+
 }

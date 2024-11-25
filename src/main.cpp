@@ -287,6 +287,12 @@ int main(int argc, char** argv)
     // Rendering Scene (ray tracing)
     sample.renderScene(cmdBuf, profiler);
 
+
+    // Denosier sample.getFramebuffers()
+    {
+
+
+    }
     // Rendering pass in swapchain framebuffer + tone mapper, UI
     {
       auto sec = profiler.timeRecurring("Tonemap", cmdBuf);
