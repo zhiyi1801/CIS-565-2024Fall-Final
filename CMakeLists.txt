@@ -119,6 +119,33 @@ source_group("Shader Sources" FILES ${GLSL_SOURCES})
 source_group("Shader Headers" FILES ${GLSL_HEADERS})
 
 
+# OIDN
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/oidn/include")
+link_directories("${CMAKE_CURRENT_SOURCE_DIR}/oidn/lib")
+target_link_libraries(${PROJNAME})
+
+set(DLLS
+    "${CMAKE_SOURCE_DIR}/oidn/bin/OpenImageDenoise.dll" 
+    "${CMAKE_SOURCE_DIR}/oidn/bin/OpenImageDenoise_core.dll"
+    "${CMAKE_SOURCE_DIR}/oidn/bin/OpenImageDenoise_device_cpu.dll"
+    "${CMAKE_SOURCE_DIR}/oidn/bin/OpenImageDenoise_device_cpu.dll"
+"${CMAKE_SOURCE_DIR}/oidn/bin/tbb12.dll"
+"${CMAKE_SOURCE_DIR}/oidn/bin/tbbbind.dll"
+"${CMAKE_SOURCE_DIR}/oidn/bin/tbbbind_2_0.dll"
+"${CMAKE_SOURCE_DIR}/oidn/bin/tbbbind_2_5.dll"
+)
+
+target_link_libraries(${PROJNAME} "${CMAKE_CURRENT_SOURCE_DIR}/oidn/lib/OpenImageDenoise.lib")
+target_link_libraries(${PROJNAME} "${CMAKE_CURRENT_SOURCE_DIR}/oidn/lib/OpenImageDenoise_core.lib")
+
+foreach(DLL ${DLLS})
+    add_custom_command(
+        TARGET ${PROJNAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${DLL}                               
+            $<TARGET_FILE_DIR:${PROJNAME}>       
+    )
+endforeach()
 
 #####################################################################################
 # Linkage
@@ -133,6 +160,7 @@ foreach(RELEASELIB ${LIBRARIES_OPTIMIZED})
   target_link_libraries(${PROJNAME} optimized ${RELEASELIB})
 endforeach(RELEASELIB)
 
+
 #####################################################################################
 # copies binaries that need to be put next to the exe files (ZLib, etc.)
 #
@@ -144,6 +172,7 @@ _finalize_target( ${PROJNAME} )
 #
 #install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/media" CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}")
 #install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/media" CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}")
+
 
 
 
