@@ -60,6 +60,10 @@ layout(set = S_RESTIR, binding = eMotionVector)      uniform iimage2D motionVect
 layout(set = S_RESTIR, binding = ePrevDirectReservoirs, scalar) buffer _PrevDirectResv { DirectReservoir prevDirectResv[]; };
 layout(set = S_RESTIR, binding = eCurrentDirectReservoirs, scalar) buffer _CurrentDirectResv { DirectReservoir currentDirectResv[]; };
 
+// ReSTIR Indirect Light
+layout(set = S_RESTIR, binding = ePrevIndirectReservoirs, scalar) buffer _PrevIndirectResv { IndirectReservoir prevIndirectResv[]; };
+layout(set = S_RESTIR, binding = eCurrentIndirectReservoirs, scalar) buffer _CurrentIndirectResv { IndirectReservoir currentIndirectResv[]; };
+
 layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
 layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReserviors[]; };
 layout(set = S_RESTIR, binding = ePrevReservoirs, scalar)   buffer _PrevReservoirs { Reservoir prevReserviors[]; };

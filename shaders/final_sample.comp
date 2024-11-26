@@ -59,7 +59,7 @@ void main()
 	FinalSample s;
 
 	s.dir = ((r.rcEnv == 1) ? normalize(r.rcEnvDir) : normalize(r.sPos - r.vPos));
-    s.Li = r.radiance * max(0.f, r.weightF);
+    s.Li = r.radiance * max(0.f, r.bigW);
 
 	finalSamples[idx] = s;
 }

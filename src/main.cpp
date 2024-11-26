@@ -95,6 +95,7 @@ int main(int argc, char** argv)
   InputParser parser(argc, argv);
   std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
   // std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
+  // std::string sceneFile = parser.getString("-f", "subway_train_interior/scene.gltf");
   std::string hdrFilename = parser.getString("-e", "daytime.hdr");
 
   // Setup GLFW window
@@ -283,6 +284,9 @@ int main(int argc, char** argv)
 
     sample.renderGui(profiler);          // UI
     sample.updateUniformBuffer(cmdBuf);  // Updating UBOs
+
+    vec3 eye, center, up;
+    CameraManip.getLookat(eye, center, up);
 
     // Rendering Scene (ray tracing)
     sample.renderScene(cmdBuf, profiler);

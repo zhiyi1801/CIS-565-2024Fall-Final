@@ -292,9 +292,11 @@ vec3 getCameraPos(ivec2 coord, float dist) {
 //    return true;
 //}
 
+//# define FETCH_GEOM_CHECK_4_SUBPIXELS 0
+//
 //bool getIndirectStateFromGBuffer(uimage2D gBuffer, Ray ray, out State state, out float depth) {
 //#if !FETCH_GEOM_CHECK_4_SUBPIXELS
-//    uvec4 gInfo = imageLoad(gBuffer, imageCoords * 2);
+//    uvec4 gInfo = imageLoad(gBuffer, imageCoords);
 //    depth = uintBitsToFloat(gInfo.x);
 //    if (depth >= INFINITY * 0.8)
 //        return false;
@@ -311,10 +313,10 @@ vec3 getCameraPos(ivec2 coord, float dist) {
 //    state.mat.transmission = matInfo.w;
 //    state.matID = gInfo.w >> 24; // hashed matarial id
 //#else
-//    uvec4 gInfo00 = imageLoad(gBuffer, imageCoords * 2 + ivec2(0, 0));
-//    uvec4 gInfo10 = imageLoad(gBuffer, imageCoords * 2 + ivec2(1, 0));
-//    uvec4 gInfo11 = imageLoad(gBuffer, imageCoords * 2 + ivec2(1, 1));
-//    uvec4 gInfo01 = imageLoad(gBuffer, imageCoords * 2 + ivec2(0, 1));
+//    uvec4 gInfo00 = imageLoad(gBuffer, imageCoords + ivec2(0, 0));
+//    uvec4 gInfo10 = imageLoad(gBuffer, imageCoords + ivec2(1, 0));
+//    uvec4 gInfo11 = imageLoad(gBuffer, imageCoords + ivec2(1, 1));
+//    uvec4 gInfo01 = imageLoad(gBuffer, imageCoords + ivec2(0, 1));
 //
 //    depth = (uintBitsToFloat(gInfo00.x) + uintBitsToFloat(gInfo10.x) + uintBitsToFloat(gInfo11.x) +
 //        uintBitsToFloat(gInfo01.x)) * 0.25;

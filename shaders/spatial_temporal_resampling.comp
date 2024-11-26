@@ -92,7 +92,7 @@ float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos, ReconnectionData rcData)
 bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2TargetPdf, inout float weightS)
 {
 	// Compute the weight of the second reservoir
-	float r2Weight = r2.M * max(0.f, r2.weightF) * r2TargetPdf;
+	float r2Weight = r2.M * max(0.f, r2.bigW) * r2TargetPdf;
 
 	// Compute the weight sum
 	weightS += r2Weight;
@@ -124,7 +124,7 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 {
 	float weight = targetPdf * resv.M;
-	resv.weightF = weight > 0 ? weightSum / weight : 0;
+	resv.bigW = weight > 0 ? weightSum / weight : 0;
 }
 
 void StResample(ivec2 imageCoords)
@@ -196,8 +196,8 @@ void StResample(ivec2 imageCoords)
 	// Get the target pdf of the prev reservoir
 	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
 
-	// Compute the weight sum(weightF = Weight_s / (M * targetpdf))
-	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.weightF);
+	// Compute the weight sum(W = Weight_s / (M * targetpdf))
+	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.bigW);
 
 	// Get the target pdf of the current reservoir
 	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos, rcData);

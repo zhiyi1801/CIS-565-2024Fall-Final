@@ -274,6 +274,26 @@ vec3 getCameraPos(ivec2 coord, float dist) {
     return ray.origin + ray.direction * dist;
 }
 
+bool getStateFromGbuffer(uimage2D gBuffer, Ray ray, ivec2 imageCoords, out State state, out float depth)
+{
+    uvec4 gInfo = imageLoad(gBuffer, imageCoords);
+    depth = uintBitsToFloat(gInfo.x);
+    if (depth >= INFINITY * 0.8)
+        return false;
+    state.position = ray.origin + ray.direction * depth;
+    state.normal = decompress_unit_vec(gInfo.y);
+    state.ffnormal = dot(state.normal, ray.direction) <= 0.0 ? state.normal : -state.normal;
+
+    state.mat.albedo = unpackUnorm4x8(gInfo.w).xyz;
+    vec4 matInfo = unpackUnorm4x8(gInfo.z);
+    state.mat.metallic = matInfo.x;
+    state.mat.roughness = matInfo.y;
+    state.mat.ior = matInfo.z * MAX_IOR_MINUS_ONE + 1.f;
+    state.mat.transmission = matInfo.w;
+    state.matID = gInfo.w >> 24;
+    return true;
+}
+
 vec3 DebugInfo(in State state) {
     switch (rtxState.debugging_mode) {
     case eMetallic:
@@ -294,6 +314,74 @@ vec3 DebugInfo(in State state) {
         return vec3(state.texCoord, 0);
     };
     return vec3(1000, 0, 0);
+}
+
+# define FETCH_GEOM_CHECK_4_SUBPIXELS 0
+
+bool getIndirectStateFromGBuffer(uimage2D gBuffer, Ray ray, ivec2 imageCoords, out State state, out float depth) {
+#if !FETCH_GEOM_CHECK_4_SUBPIXELS
+    uvec4 gInfo = imageLoad(gBuffer, imageCoords);
+    depth = uintBitsToFloat(gInfo.x);
+    if (depth >= INFINITY * 0.8)
+        return false;
+    state.position = ray.origin + ray.direction * depth;
+    state.normal = decompress_unit_vec(gInfo.y);
+    state.ffnormal = dot(state.normal, ray.direction) <= 0.0 ? state.normal : -state.normal;
+
+    // Filling material structures
+    state.mat.albedo = unpackUnorm4x8(gInfo.w).xyz;
+    vec4 matInfo = unpackUnorm4x8(gInfo.z);
+    state.mat.metallic = matInfo.x;
+    state.mat.roughness = matInfo.y;
+    state.mat.ior = matInfo.z * MAX_IOR_MINUS_ONE + 1.f;
+    state.mat.transmission = matInfo.w;
+    state.matID = gInfo.w >> 24; // hashed matarial id
+#else
+    uvec4 gInfo00 = imageLoad(gBuffer, imageCoords + ivec2(0, 0));
+    uvec4 gInfo10 = imageLoad(gBuffer, imageCoords + ivec2(1, 0));
+    uvec4 gInfo11 = imageLoad(gBuffer, imageCoords + ivec2(1, 1));
+    uvec4 gInfo01 = imageLoad(gBuffer, imageCoords + ivec2(0, 1));
+
+    depth = (uintBitsToFloat(gInfo00.x) + uintBitsToFloat(gInfo10.x) + uintBitsToFloat(gInfo11.x) +
+        uintBitsToFloat(gInfo01.x)) * 0.25;
+
+    if (depth >= INFINITY - EPS * 10.0)
+        return false;
+
+    state.position = ray.origin + ray.direction * depth;
+    state.normal = (decompress_unit_vec(gInfo00.y) + decompress_unit_vec(gInfo10.y) + decompress_unit_vec(gInfo11.y) +
+        decompress_unit_vec(gInfo01.y)) * 0.25;
+    state.ffnormal = dot(state.normal, ray.direction) <= 0.0 ? state.normal : -state.normal;
+
+    // Filling material structures
+    state.mat.albedo = (unpackUnorm4x8(gInfo00.w).xyz + unpackUnorm4x8(gInfo10.w).xyz +
+        unpackUnorm4x8(gInfo11.w).xyz + unpackUnorm4x8(gInfo01.w).xyz) * 0.25;
+
+    vec4 matInfo00 = unpackUnorm4x8(gInfo00.z);
+    vec4 matInfo10 = unpackUnorm4x8(gInfo10.z);
+    vec4 matInfo11 = unpackUnorm4x8(gInfo11.z);
+    vec4 matInfo01 = unpackUnorm4x8(gInfo01.z);
+
+    state.mat.metallic = (matInfo00.x + matInfo10.x + matInfo11.x + matInfo01.x) * 0.25;
+    state.mat.roughness = (matInfo00.y + matInfo10.y + matInfo11.y + matInfo01.y) * 0.25;
+    state.mat.ior = (matInfo00.z + matInfo10.z + matInfo11.z + matInfo01.z) * 0.25 * MAX_IOR_MINUS_ONE + 1.f;
+    state.mat.transmission = (matInfo00.w + matInfo01.w + matInfo11.w + matInfo10.w) * 0.25;
+
+    float r = rand(prd.seed);
+    if (r < 0.25) {
+        state.matID = gInfo00.w >> 24;
+    }
+    else if (r < 0.5) {
+        state.matID = gInfo10.w >> 24;
+    }
+    else if (r < 0.75) {
+        state.matID = gInfo11.w >> 24;
+    }
+    else {
+        state.matID = gInfo01.w >> 24;
+    }
+#endif
+    return true;
 }
 
 // Pack the hit info to a uvec4
@@ -379,6 +467,8 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             {
                 pathState.rcEnvDir = r.direction;
                 pathState.rcEnv = 1;
+                pathState.rcVertexPos = state.position + r.direction * INFINITY * 0.8;
+                pathState.rcVertexNorm = -r.direction;
             }
             pathState.thp = vec3(1.0f);
         }
@@ -401,18 +491,10 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             vec3 env;
             vec3 Li;
             float MIS_weight = 1;
-            if (_sunAndSky.in_use == 1)
-                env = sun_and_sky(_sunAndSky, r.direction);
-            else
-            {
-                vec2 uv = GetSphericalUv(r.direction);  // See sampling.glsl
-                env = texture(environmentTexture, uv).rgb;
-                Li = env;
-            }
+            float lightPdf;
+            Li = EnvEval(r.direction, lightPdf);
             if (depth > 0 /*&& lastMaterial.transmission == 0*/)
             {
-                float lightPdf;
-                Li = EnvEval(sampleWi, lightPdf);
                 MIS_weight = powerHeuristic(samplePdf, lightPdf);
             }
             // Done sampling return
@@ -510,6 +592,24 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             }
         }
 
+		if (pathState.currentVertexIndex < pathState.rcVertexLength)
+		{
+            // Pack the hit info of the prev vertex
+            pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
+
+            // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
+            pathState.preRcVertexWo = wo;
+
+            // Record the position of the prev vertex
+            pathState.preRcVertexPos = state.position;
+
+            // Record the face normal of the prev vertex
+            pathState.preRcVertexNorm = state.ffnormal;
+
+            // Record mat ID of prev vertex
+            pathState.preRcMatId = int(state.matID);
+		}
+
         // Sample Next Ray
         {
             // Sample next ray according to BSDF
@@ -541,23 +641,8 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 // Current vertex is prev vertex and next vertex is the reconnect vertex
                 pathState.rcVertexLength = pathState.currentVertexIndex + 1;
 
-                // Pack the hit info of the prev vertex
-                pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
-
-                // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
-                pathState.preRcVertexWo = wo;
-
-                // Record the position of the prev vertex
-                pathState.preRcVertexPos = state.position;
-
-                // Record the face normal of the prev vertex
-                pathState.preRcVertexNorm = state.ffnormal;
-
                 // Record the pdf from the prev vertex to the reconnect vertex
                 pathState.pdf = samplePdf;
-
-                // Record the wi on the prev vertex
-                pathState.preRcVertexWi = sampleWi;
             }
 
             // evaluate the bsdf * cos(theta) / pdf
@@ -643,9 +728,10 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     pathState.cacheBsdfCosWeight = vec3(0);
 
     pathState.rcVertexPos = vec3(0.0f);
-    pathState.rcVertexNorm = vec3(0.0f);
+    pathState.rcVertexNorm = vec3(100.f);
     pathState.preRcVertexPos = vec3(0.0f);
-    pathState.preRcVertexNorm = vec3(0.0f);
+    pathState.preRcVertexNorm = vec3(100.0f);
+    pathState.preRcMatId = -1;
 
     pathState.validRcPath = 0;
 
@@ -670,6 +756,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     initialSampleBuffer[idx].pdf = pathState.pdf;
     initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
     initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
+	initialSampleBuffer[idx].preRcMatId = pathState.preRcMatId;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));

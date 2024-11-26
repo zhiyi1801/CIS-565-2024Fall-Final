@@ -119,10 +119,12 @@ eIndexTemp = 13,
 eMotionVector = 14,
 ePrevDirectReservoirs = 15,
 eCurrentDirectReservoirs = 16,
-eDebugUintImage = 17,
-eDebugImage = 18,
-eDebugUintBuffer = 19,
-eDebugFloatBuffer = 20
+ePrevIndirectReservoirs = 17,
+eCurrentIndirectReservoirs = 18,
+eDebugUintImage = 19,
+eDebugImage = 20,
+eDebugUintBuffer = 21,
+eDebugFloatBuffer = 22
 END_ENUM();
 
 START_ENUM(DebugMode)
@@ -360,27 +362,6 @@ struct SunAndSky
   int   in_use;
 };
 
-// ReSTIR Structure
-struct Reservoir
-{
-    vec3 vPos;
-	uint M;
-
-    vec3 vNorm;
-	float weightF; //the weight use for compute final illuminance weightF = Weight_s / (M * targetpdf)
-
-    vec3 sPos;
-	uint age; //age the sample  > maxSampleAge will be discard
-
-    vec3 sNorm;
-	uint rcEnv;
-
-    vec3 radiance;
-	int vMatId;
-
-	vec3 rcEnvDir;
-	uint padding2;
-};
 
 // Final sample structure
 struct FinalSample
@@ -585,10 +566,53 @@ struct DirectReservoir {
 	uint padding2;
 };
 
-// ReSTIR GI
-struct GISample
-{
+// ReSTIR Indirect light
+struct GISample {
+	vec3 L;
+	float pHat;
+
+	vec3 xv;
+	uint pad1;
+
 	vec3 nv;
+	uint pad2;
+
+	vec3 xs; 
+	uint pad3;
+
+	vec3 ns;
+	uint pad4;
+};
+
+struct IndirectReservoir {
+	GISample giSample;
+
+	uint	 M;
+	float weight;
+	float bigW;
+	uint pad1;
+};
+
+// ReSTIR Structure
+struct Reservoir
+{
+	vec3 vPos;
+	uint M;
+
+	vec3 vNorm;
+	float bigW; //the weight use for compute final illuminance W = Weight_s / (M * targetpdf)
+
+	vec3 sPos;
+	uint age; //age the sample  > maxSampleAge will be discard
+
+	vec3 sNorm;
+	uint rcEnv;
+
+	vec3 radiance;
+	int vMatId;
+
+	vec3 rcEnvDir;
+	float weightSum;
 };
 
 #endif  // COMMON_HOST_DEVICE

@@ -80,7 +80,8 @@ void main()
   // Initialize the seed for the random number only once once
   // uvec2 s    = pcg2d(imageCoords * int(clockARB()));
   // prd.seed = s.x + s.y;
-  prd.seed = tea(rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.frame * rtxState.maxSamples);
+  // prd.seed = tea(rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.frame * rtxState.maxSamples);
+  prd.seed = tea(rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.time);
   //prd.seed = initRandom(uvec2(imageRes), gl_GlobalInvocationID.xy, rtxState.frame);
 
   // Sampling the pixel
@@ -140,7 +141,7 @@ void main()
   // A flag shows if the pixel first hit the environment
   bool firstHitEnv = (uintBitsToFloat(imageLoad(thisGbuffer, imageCoords).x) == INFINITY);
 
-  if(firstHitEnv)
+  if(firstHitEnv || (initialSampleBuffer[idx].preRcVertexNorm.x > 2.0f))
   {
       imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
   }

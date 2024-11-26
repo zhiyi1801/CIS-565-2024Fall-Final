@@ -140,7 +140,9 @@ Reservoir SetGIReservoir(InitialSample s)
   initialReservoir.sNorm = s.rcVertexNorm;
   initialReservoir.radiance = s.rcVertexLo;
 
-  initialReservoir.weightF = s.pdf > 0.f ? 1.f / s.pdf : 0.f;
+  float pHat = 
+  initialReservoir.weightSum = 1.f;
+  initialReservoir.bigW = s.pdf > 0.f ? 1.f / s.pdf : 0.f;
   initialReservoir.M = 1u;
   initialReservoir.age = 0;
 

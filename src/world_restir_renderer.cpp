@@ -27,6 +27,7 @@
 #include "autogen//final_sample.comp.h"
 #include "autogen/final_shading.comp.h"
 #include "autogen/ReSTIR_DI.comp.h"
+#include "autogen/ReSTIR_Indirect.comp.h"
 
 VkPipeline createComputePipeline(VkDevice device, VkComputePipelineCreateInfo createInfo, const uint32_t* shader, size_t bytes) {
 	VkPipeline pipeline;
@@ -108,6 +109,9 @@ void WorldRestirRenderer::create(const VkExtent2D& size, std::vector<VkDescripto
 
 	m_DirectLightPipeline = createComputePipeline(m_device, createInfo, ReSTIR_DI_comp, sizeof(ReSTIR_DI_comp));
 	m_debug.setObjectName(m_DirectLightPipeline, "Direct Light");
+
+	m_IndirectPipeline = createComputePipeline(m_device, createInfo, ReSTIR_Indirect_comp, sizeof(ReSTIR_Indirect_comp));
+	m_debug.setObjectName(m_IndirectPipeline, "Indirect Light");
 
 	timer.print();
 }
@@ -216,6 +220,7 @@ void WorldRestirRenderer::createBuffer()
 	m_DebugFloatBuffer = m_pAlloc->createBuffer(m_DebugBufferSize * sizeof(float), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 	VkDeviceSize directSize = m_size.width * m_size.height * sizeof(DirectReservoir);
+	VkDeviceSize indirectSize = m_size.width * m_size.height * sizeof(IndirectReservoir);
 	for (int i = 0; i < 2; ++i)
 	{
 		m_Reservoirs[i] = m_pAlloc->createBuffer(reseviorCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -224,6 +229,7 @@ void WorldRestirRenderer::createBuffer()
 		m_CheckSumBuffer[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_CellCounter[i] = m_pAlloc->createBuffer(hashBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		m_DirectReservoir[i] = m_pAlloc->createBuffer(directSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		m_IndirectReservoir[i] = m_pAlloc->createBuffer(indirectSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
 }
 
@@ -308,6 +314,10 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::ePrevDirectReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCurrentDirectReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
+	// Indirect Light Reservoirs
+	m_bind.addBinding({ ReSTIRBindings::ePrevIndirectReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+	m_bind.addBinding({ ReSTIRBindings::eCurrentIndirectReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
+
 	m_bind.addBinding({ ReSTIRBindings::eInitialReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCurrentReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::ePrevReservoirs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
@@ -338,14 +348,16 @@ void WorldRestirRenderer::createDescriptorSet()
 
 void WorldRestirRenderer::updateDescriptorSet()
 {
-	std::array<VkWriteDescriptorSet, 21> writes;
+	std::vector<VkWriteDescriptorSet> writes;
 	VkDeviceSize fullScreenSize = m_size.width * m_size.height;
 	VkDeviceSize elementCount = fullScreenSize;
 	VkDeviceSize hashBufferSize = m_CellSize * sizeof(uint32_t);
 	VkDeviceSize reseviorCount = 2 * elementCount;
 	VkDeviceSize directResvSize = m_size.width * m_size.height * sizeof(DirectReservoir);
+	VkDeviceSize indirectResvSize = m_size.width * m_size.height * sizeof(IndirectReservoir);
 
 	for (int i = 0; i < 2; i++) {
+		writes.clear();
 		VkDescriptorBufferInfo initialResvervoirBufInfo = { m_InitialReservoir.buffer, 0, elementCount * sizeof(Reservoir) };
 		VkDescriptorBufferInfo currentReservoirBufInfo = { m_Reservoirs[i].buffer, 0, reseviorCount * sizeof(Reservoir)};
 		VkDescriptorBufferInfo prevReservoirBufInfo = { m_Reservoirs[!i].buffer, 0, reseviorCount * sizeof(Reservoir)};
@@ -358,44 +370,52 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo lastDirectResvBufInfo = { m_DirectReservoir[!i].buffer, 0, directResvSize };
 		VkDescriptorBufferInfo thisDirectResvBufInfo = { m_DirectReservoir[i].buffer, 0, directResvSize };
 
+		// Indirect Light Reservoirs
+		VkDescriptorBufferInfo lastIndirectResvBufInfo = { m_IndirectReservoir[!i].buffer, 0, indirectResvSize };
+		VkDescriptorBufferInfo thisIndirectResvBufInfo = { m_IndirectReservoir[i].buffer, 0, indirectResvSize };
+
 		VkDescriptorBufferInfo cellStorageBufInfo = { m_CellStorage[i].buffer, 0, elementCount * sizeof(uint) };
 		VkDescriptorBufferInfo indexBufInfo = { m_IndexBuffer[i].buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo indexTempBufInfo = { m_IndexTempBuffer.buffer, 0, hashBufferSize};
 		VkDescriptorBufferInfo checkSumBufInfo = { m_CheckSumBuffer[i].buffer, 0, hashBufferSize };
 		VkDescriptorBufferInfo cellCounterBufInfo = { m_CellCounter[i].buffer, 0, hashBufferSize };
 
-		writes[0] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eLastGbuffer, &m_gbuffer[i].descriptor);
-		writes[1] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentGbuffer, &m_gbuffer[!i].descriptor);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eLastGbuffer, &m_gbuffer[i].descriptor));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentGbuffer, &m_gbuffer[!i].descriptor));
 
-		writes[2] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialReservoirs, &initialResvervoirBufInfo);
-		writes[3] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentReservoirs, &currentReservoirBufInfo);
-		writes[4] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevReservoirs, &prevReservoirBufInfo);
-		writes[5] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAppend, &appendBufInfo);
-		writes[6] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eFinal, &finalSampleBufInfo);
-		writes[7] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCell, &cellStorageBufInfo);
-		writes[8] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo);
-		writes[9] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo);
-		writes[10] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo);
-		writes[11] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo);
-		writes[12] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo);
-		writes[13] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialReservoirs, &initialResvervoirBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentReservoirs, &currentReservoirBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevReservoirs, &prevReservoirBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eAppend, &appendBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eFinal, &finalSampleBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCell, &cellStorageBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo));
 
 		// debug images desc
-		writes[14] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor);
-		writes[15] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintImage, &m_DebugUintImage.descriptor));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugImage, &m_DebugImage.descriptor));
 
 		// Motion vec
-		writes[16] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eMotionVector, &m_motionVector.descriptor);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eMotionVector, &m_motionVector.descriptor));
 
 		// Direct Light Reservoirs
-		writes[17] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevDirectReservoirs, &lastDirectResvBufInfo);
-		writes[18] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentDirectReservoirs, &thisDirectResvBufInfo);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevDirectReservoirs, &lastDirectResvBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentDirectReservoirs, &thisDirectResvBufInfo));
+
+		// Indirect Light Reservoirs
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::ePrevIndirectReservoirs, &lastIndirectResvBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCurrentIndirectReservoirs, &thisIndirectResvBufInfo));
 
 		// debug buffers desc
 		VkDescriptorBufferInfo debugUintBufInfo = { m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint32_t) };
 		VkDescriptorBufferInfo debugFloatBufInfo = { m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float) };
-		writes[19] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo);
-		writes[20] = m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo);
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugUintBuffer, &debugUintBufInfo));
+		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eDebugFloatBuffer, &debugFloatBufInfo));
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 	}
@@ -531,8 +551,8 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	vkCmdFillBuffer(cmdBuf, m_CheckSumBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
 	vkCmdFillBuffer(cmdBuf, m_IndexBuffer[(frames + 1) % 2].buffer, 0, hashBufferSize, 0);
 	vkCmdFillBuffer(cmdBuf, m_IndexTempBuffer.buffer, 0, hashBufferSize, 0);
-	vkCmdFillBuffer(cmdBuf, m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint), 0);
-	vkCmdFillBuffer(cmdBuf, m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float), 0);
+	//vkCmdFillBuffer(cmdBuf, m_DebugUintBuffer.buffer, 0, m_DebugBufferSize * sizeof(uint), 0);
+	//vkCmdFillBuffer(cmdBuf, m_DebugFloatBuffer.buffer, 0, m_DebugBufferSize * sizeof(float), 0);
 
 	// Clear images
 	{
@@ -673,13 +693,12 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	EndPerfMarker(cmdBuf);
 	
 	// --------------------------------------------
-	// Gbuffer Pass
-	//InsertPerfMarker(cmdBuf, "Compute Shader: GBuffer", color[(count++) % 3]);
-	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_GbufferPipeline);
-	//vkCmdDispatch(cmdBuf, (size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+	// 
+	// Indirect Light Pass
+	//InsertPerfMarker(cmdBuf, "Compute Shader: Indirect Light", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_IndirectPipeline);
+	//vkCmdDispatch(cmdBuf, (size.width + (RayTraceBlockSizeX - 1)) / RayTraceBlockSizeX, (size.height + (RayTraceBlockSizeY - 1)) / RayTraceBlockSizeY, 1);
 	//EndPerfMarker(cmdBuf);
-
-	// Insert barrier for GBuffer Pass
 
 	// --------------------------------------------
 	// Initial Sample Pass

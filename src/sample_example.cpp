@@ -209,6 +209,17 @@ void SampleExample::updateFrame()
     fov          = f;
   }
 
+  if (m_totalFrames == -1)
+  {
+      vec3 initial_eye(-0.12, 5.21, -0.32);
+      vec3 initial_up(0, 1, 0);
+      vec3 initial_center = initial_eye + vec3(1, 0, 0);
+      CameraManip.setLookat(initial_eye, initial_center, initial_up);
+  }
+
+  vec3 eye, center, up;
+  CameraManip.getLookat(eye, center, up);
+
   if(m_rtxState.frame < m_maxFrames)
     m_rtxState.frame++;
     m_totalFrames++;
@@ -411,7 +422,6 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
 #if defined(NVP_SUPPORTS_NVML)
   g_nvml.refresh();
 #endif
-
   if(m_busy)
   {
     m_gui->showBusyWindow();  // Busy while loading scene
@@ -419,29 +429,33 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   }
 
   LABEL_SCOPE_VK(cmdBuf);
-  auto now = std::chrono::system_clock::now();
-  auto duration = now.time_since_epoch();
-  auto nowMillis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-  static std::time_t prevFrameTime;
-  static bool firstFlag = true;
-  if (autoMove)
-  {
-      if (firstFlag)
-      {
-          prevFrameTime = nowMillis;
-          firstFlag = false;
-      }
-	  float deltaTime = (nowMillis - prevFrameTime)/1000.0f;
-      vec3 eye, center, up;
-      vec3 moveVector = vec3(0.8, 0, 0.f);
-      CameraManip.getLookat(eye, center, up);
-      CameraManip.setLookat(eye + (moveVector * deltaTime), center + (moveVector * deltaTime), up);
-	  prevFrameTime = nowMillis;
-  }
-  else
-  {
-      firstFlag = true;
-  }
+
+  //auto now = std::chrono::system_clock::now();
+  //auto duration = now.time_since_epoch();
+  //auto nowMillis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  //static std::time_t prevFrameTime;
+  //static bool firstFlag = true;
+  //if (autoMove)
+  //{
+  //    if (firstFlag)
+  //    {
+  //        prevFrameTime = nowMillis;
+  //        firstFlag = false;
+  //    }
+	 // float deltaTime = (nowMillis - prevFrameTime)/1000.0f;
+  //    vec3 eye, center, up;
+  //    vec3 moveVector = vec3(0.8, 0, 0.f);
+  //    CameraManip.getLookat(eye, center, up);
+  //    CameraManip.setLookat(eye + (moveVector * deltaTime), center + (moveVector * deltaTime), up);
+	 // prevFrameTime = nowMillis;
+  //}
+  //else
+  //{
+  //    firstFlag = true;
+  //}
+
+  vec3 eye, center, up;
+  CameraManip.getLookat(eye, center, up);
 
   // Set the global time
   m_rtxState.time = (uint)(std::chrono::duration<double>(std::chrono::steady_clock::now() - m_start_time).count() * 1000.0);
