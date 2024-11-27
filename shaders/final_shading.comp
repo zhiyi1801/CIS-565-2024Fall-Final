@@ -111,7 +111,7 @@ void main()
 	// Update the result image
 	if(rtxState.restirDebugMode == eReSTIR)
 	{
-		//imageStore(resultImage, imageCoords, vec4(color, 1.0f));
+		imageStore(resultImage, imageCoords, vec4(color, 1.0f));
 	}
 
 	//Accumulated

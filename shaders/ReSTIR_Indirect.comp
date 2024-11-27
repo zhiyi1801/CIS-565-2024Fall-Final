@@ -79,7 +79,6 @@ bool findTemporalNeighbor(
     
     loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
     ivec2 coord = lastCoord;
-    
     if (inBound(coord, indSize())) {
         if (hash8bit(matId) == matHash) {
             if (dot(norm, pnorm) > 0.5 && reprojDepth < pdepth * 1.1) {
@@ -132,7 +131,7 @@ void resvUpdate(inout IndirectReservoir resv, GISample newSample, float newWeigh
 {
     resv.weight += newWeight;
     resv.M += 1;
-    if (r * resv.weight < newWeight) 
+    if (r * resv.weight <= newWeight) 
     {
         resv.giSample = newSample;
     }
@@ -296,6 +295,18 @@ vec3 ReSTIRIndirect(float dist, float primSamplePdf, vec3 primWo, State primStat
         }
     }
     resvUpdate(resv, giSample, sampleWeight, rand(prd.seed));
+
+    if(idx == 3 && debugUintBuffer[50] <= 5)
+	{
+		debugReserviors[20 + 0].giSample = resv.giSample;
+        debugReserviors[20 + 0].bigW = resv.bigW;
+        debugReserviors[20 + 0].M = resv.M;
+        debugReserviors[20 + 1].giSample = prevIndirectResv[idx].giSample;
+        debugReserviors[20 + 1].bigW = prevIndirectResv[idx].bigW;
+        debugReserviors[20 + 1].M = prevIndirectResv[idx].M;
+        debugReserviors[20 + 2].giSample = giSample;
+        debugUintBuffer[50] += 1;
+	}
 
     resvCheckValidity(resv);
     resvClamp(resv, rtxState.reservoirClamp * 2);

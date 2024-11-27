@@ -64,6 +64,7 @@ private:
 	// Debug buffer
 	nvvk::Buffer m_DebugUintBuffer;
 	nvvk::Buffer m_DebugFloatBuffer;
+	nvvk::Buffer m_DebugResvBuffer;
 	
 	bool m_Recompile = true;
 	bool m_StateChanged = false;

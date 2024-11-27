@@ -743,6 +743,14 @@ void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathStat
         float samplePdf;
         vec3 sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
 
+        if (depth == 1)
+        {
+            pathState.pdf = samplePdf;
+            pathState.preRcVertexPos = state.position;
+            pathState.preRcVertexNorm = state.ffnormal;
+            pathState.preRcMatId = int(state.matID);
+        }
+
         if (IsPdfInvalid(samplePdf))
         {
             break;
@@ -756,10 +764,6 @@ void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathStat
         else
         {
             // Record the first hit
-            pathState.pdf = samplePdf;
-            pathState.preRcVertexPos = state.position;
-            pathState.preRcVertexNorm = state.ffnormal;
-            pathState.preRcMatId = int(state.matID);
         }
 
         // Generate next ray
@@ -794,6 +798,7 @@ void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathStat
 
         state = GetState(prd, ray.direction);
         GetMaterials(state, ray);
+		state.matID = int(hash8bit(state.matID));
 
         // Hit Light
         if (state.isEmitter)

@@ -244,10 +244,11 @@ bool findTemporalNeighbor(
     
 	loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
     ivec2 coord = lastCoord;
-    
+
     if (inBound(coord, indSize())) 
 	{
 		Reservoir tempResv = prevReserviors[coord.y * indSize().x + coord.x];
+
         if (initialResv.giSample.vMatId == tempResv.giSample.vMatId) 
 		{
             if (dot(initialResv.giSample.nv, tempResv.giSample.nv) > 0.5 && reprojDepth < pdepth * 1.1) 
@@ -298,10 +299,10 @@ void resvUpdate(inout Reservoir resv, GISample newSample, float newWeight, float
 {
     resv.weightSum += newWeight;
     resv.M += 1;
-    if (r * resv.weightSum < newWeight) 
+    if (r * resv.weightSum <= newWeight) 
     {
         resv.giSample = newSample;
-		resv.bigW = resv.weightSum / (resv.giSample.pHat * float(resv.M));
+		resv.bigW = resv.weightSum > 0 ? resv.weightSum / (resv.giSample.pHat * float(resv.M)) : 0;
     }
 }
 
@@ -371,10 +372,23 @@ void StResample(ivec2 imageCoords)
         }
     }
 
+	if(idx == 3 && debugUintBuffer[40] <= 5)
+	{
+		debugReserviors[0] = resv;
+	}
+
 	// Update the temporal reservoir
 	resvUpdate(resv, giSample, sampleWeight, rand(prd.seed));
 
-	resvCheckValidity(resv);
+	if(idx == 3 && debugUintBuffer[40] <= 5)
+	{
+		debugReserviors[1] = resv;
+		debugReserviors[2] = prevReserviors[idx];
+		debugReserviors[3].giSample = giSample;
+		debugUintBuffer[40] += 1;
+	}
+
+	// resvCheckValidity(resv);
     resvClamp(resv, rtxState.reservoirClamp * 2);
 
 	// Write the temporal reservoir to the current buffer

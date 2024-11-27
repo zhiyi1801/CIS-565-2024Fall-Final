@@ -124,7 +124,8 @@ eCurrentIndirectReservoirs = 18,
 eDebugUintImage = 19,
 eDebugImage = 20,
 eDebugUintBuffer = 21,
-eDebugFloatBuffer = 22
+eDebugFloatBuffer = 22,
+eDebugExtra = 23
 END_ENUM();
 
 START_ENUM(DebugMode)
