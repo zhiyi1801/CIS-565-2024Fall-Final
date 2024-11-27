@@ -398,7 +398,7 @@ struct InitialSample
 
 	// reconnect vertex world position
 	vec3 rcVertexPos;
-	int padding1;
+	float pHat;
 
 	// reconnect vertex world normal
 	vec3 rcVertexNorm;
@@ -451,7 +451,7 @@ struct PathPayLoad
 	float pdf;
 
 	vec3 rcVertexRadiance;
-	int padding1;
+	float pHat;
 
 	vec3 preRcVertexPos;
 	int padding2;
@@ -572,16 +572,19 @@ struct GISample {
 	float pHat;
 
 	vec3 xv;
-	uint pad1;
+	uint vMatId;
 
 	vec3 nv;
-	uint pad2;
+	float p;
 
 	vec3 xs; 
 	uint pad3;
 
 	vec3 ns;
 	uint pad4;
+
+	vec3 rcEnvDir;
+	uint rcEnv;
 };
 
 struct IndirectReservoir {
@@ -596,23 +599,33 @@ struct IndirectReservoir {
 // ReSTIR Structure
 struct Reservoir
 {
-	vec3 vPos;
+	GISample giSample;
+
 	uint M;
-
-	vec3 vNorm;
 	float bigW; //the weight use for compute final illuminance W = Weight_s / (M * targetpdf)
-
-	vec3 sPos;
-	uint age; //age the sample  > maxSampleAge will be discard
-
-	vec3 sNorm;
-	uint rcEnv;
-
-	vec3 radiance;
-	int vMatId;
-
-	vec3 rcEnvDir;
 	float weightSum;
+	uint age; //age the sample  > maxSampleAge will be 
 };
+
+//struct Reservoir
+//{
+//	vec3 vPos;
+//	uint M;
+//
+//	vec3 vNorm;
+//	float bigW; //the weight use for compute final illuminance W = Weight_s / (M * targetpdf)
+//
+//	vec3 sPos;
+//	uint age; //age the sample  > maxSampleAge will be discard
+//
+//	vec3 sNorm;
+//	uint rcEnv;
+//
+//	vec3 radiance;
+//	int vMatId;
+//
+//	vec3 rcEnvDir;
+//	float weightSum;
+//};
 
 #endif  // COMMON_HOST_DEVICE

@@ -154,10 +154,6 @@ void resvClamp(inout IndirectReservoir resv, int clamp)
     }
 }
 
-float MIS(float f, float g) {
-    return powerHeuristic(f, g);
-}
-
 void pathTraceIndirect(State state, Ray ray, out float primSamplePdf, out vec3 primWo, out State primState, out GISample giSample)
 {
 	// Define some basic variables
@@ -338,14 +334,14 @@ void main()
 
     prd.seed = tea(indSize().x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.time);
     Ray ray = raySpawn(imageCoords, indSize());
-
+    // imageStore(debugUintImage, imageCoords, ivec4(prd.seed-1));
     State state;
     float depth;
     if (!getIndirectStateFromGBuffer(thisGbuffer, ray, imageCoords, state, depth)) 
     {
-        imageStore(resultImage, imageCoords, vec4(0.0));
         return;
     }
+
     state.position += state.ffnormal * 2e-2;
 
     float primSamplePdf; 
@@ -359,6 +355,6 @@ void main()
     pixelColor = clampRadiance(pixelColor);
     vec4 c00 = vec4(pixelColor, 1.0);
 
-    imageStore(resultImage, imageCoords, vec4(currentIndirectResv[imageCoords.y * indSize().x + imageCoords.x].giSample.xv, 1.0f));
+    imageStore(resultImage, imageCoords, c00);
 
 }

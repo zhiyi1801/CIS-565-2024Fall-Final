@@ -316,8 +316,11 @@ vec3 DebugInfo(in State state) {
     return vec3(1000, 0, 0);
 }
 
-# define FETCH_GEOM_CHECK_4_SUBPIXELS 0
+float MIS(float f, float g) {
+    return powerHeuristic(f, g);
+}
 
+# define FETCH_GEOM_CHECK_4_SUBPIXELS 0
 bool getIndirectStateFromGBuffer(uimage2D gBuffer, Ray ray, ivec2 imageCoords, out State state, out float depth) {
 #if !FETCH_GEOM_CHECK_4_SUBPIXELS
     uvec4 gInfo = imageLoad(gBuffer, imageCoords);
@@ -400,301 +403,433 @@ uvec4 encodeGeometryInfo(State state, float depth) {
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
-vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
+//vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
+//{
+//    vec3 radiance = vec3(0.0);
+//    vec3 throughput = vec3(1.0);
+//    vec3 absorption = vec3(0.0);
+//
+//    float samplePdf;
+//    vec3 sampleWi;
+//    vec3 sampleBSDF;
+//    Material lastMaterial;
+//
+//    for (int depth = 0; depth < rtxState.maxDepth; depth++)
+//    {
+//        pathState.currentVertexIndex++;
+//        bool isPrimaryHit = (pathState.currentVertexIndex == 1);
+//        ClosestHit(r);
+//
+//        BsdfSampleRec bsdfSampleRec;
+//
+//        // Get Position, Normal, Tangents, Texture Coordinates, Color
+//        ShadeState sstate;
+//        State state;
+//
+//        // If hit the scene, get the state
+//        if (prd.hitT != INFINITY)
+//        {
+//            sstate = GetShadeState(prd);
+//
+//            //// Debug the world position
+//            //return sstate.position;
+//
+//            state.position = sstate.position;
+//            state.normal = sstate.normal;
+//            state.tangent = sstate.tangent_u[0];
+//            state.bitangent = sstate.tangent_v[0];
+//            state.texCoord = sstate.text_coords[0];
+//            state.matID = sstate.matIndex;
+//            state.isEmitter = false;
+//            state.specularBounce = false;
+//            state.isSubsurface = false;
+//            state.ffnormal = dot(state.normal, r.direction) <= 0.0 ? state.normal : -state.normal;
+//
+//            // Filling material structures
+//            GetMaterialsAndTextures(state, r);
+//        }
+//
+//        // Transfer normal to a uint
+//        uint normprint = BinaryNorm(state.ffnormal);
+//
+//        // for debugging
+//        //return vec3(float(cellIndex
+//
+//        // Flag shows if it is the reconnect vertex
+//        bool connectabele = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex == pathState.rcVertexLength);
+//
+//        if (connectabele)
+//        {
+//            // If hit the scene, record the vertex position and normal
+//            if (prd.hitT != INFINITY)
+//            {
+//                pathState.rcVertexPos = state.position;
+//                pathState.rcVertexNorm = state.ffnormal;
+//            }
+//            else
+//            {
+//                pathState.rcEnvDir = r.direction;
+//                pathState.rcEnv = 1;
+//                pathState.rcVertexPos = state.position + r.direction * INFINITY * 0.8;
+//                pathState.rcVertexNorm = -r.direction;
+//            }
+//            pathState.thp = vec3(1.0f);
+//        }
+//
+//        // Hitting the environment
+//        if (prd.hitT == INFINITY)
+//        {
+//            if (rtxState.debugging_mode != eNoDebug)
+//            {
+//                if (depth != rtxState.maxDepth - 1)
+//                    return vec3(0);
+//                if (rtxState.debugging_mode == eRadiance)
+//                    return radiance;
+//                else if (rtxState.debugging_mode == eWeight)
+//                    return throughput;
+//                else if (rtxState.debugging_mode == eRayDir)
+//                    return (r.direction + vec3(1)) * 0.5;
+//            }
+//
+//            vec3 env;
+//            vec3 Li;
+//            float MIS_weight = 1;
+//            float lightPdf;
+//            Li = EnvEval(r.direction, lightPdf);
+//            if (depth > 0 /*&& lastMaterial.transmission == 0*/)
+//            {
+//                MIS_weight = powerHeuristic(samplePdf, lightPdf);
+//            }
+//            // Done sampling return
+//
+//            pathState.radiance += (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
+//
+//            if (pathState.currentVertexIndex < pathState.rcVertexLength)
+//            {
+//                vec3 thp = pathState.prefixThp;
+//                pathState.prefixPathRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
+//            }
+//            else
+//            {
+//                vec3 thp = pathState.thp;
+//                pathState.rcVertexRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
+//            }
+//
+//            return radiance + (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
+//        }
+//
+//        if (state.isEmitter) {
+//            float lightPdf;
+//            vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
+//            float MIS_weight = ((depth == 0 /*|| lastMaterial.transmission == 0*/) ? 1.0f : powerHeuristic(samplePdf, lightPdf));
+//
+//            pathState.radiance += Li * throughput * MIS_weight;
+//            if (pathState.currentVertexIndex < pathState.rcVertexLength)
+//            {
+//                vec3 thp = pathState.prefixThp;
+//                pathState.prefixPathRadiance += thp * Li * MIS_weight;
+//            }
+//            else
+//            {
+//                vec3 thp = pathState.thp;
+//                pathState.rcVertexRadiance += thp * Li * MIS_weight;
+//            }
+//
+//            radiance += Li * throughput * MIS_weight;
+//            break;
+//        }
+//
+//        // Color at vertices
+//        state.mat.albedo *= sstate.color;
+//
+//        // Debugging info
+//        if (rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
+//        {
+//            // return vec3(0.0f, 1.0f, 0.0f);
+//            return DebugInfo(state);
+//        }
+//
+//        vec3 wo = -r.direction;
+//
+//        // Do MIS 
+//        {
+//            // Direct light radiance and direction from sample point to light sample
+//            vec3 Li, wi;
+//
+//            // Sample direct light
+//            float lightPdf = SampleDirectLight(state, Li, wi);
+//
+//            // If the light is visible, do MIS
+//            if (!IsPdfInvalid(lightPdf) /*&& lastMaterial.transmission == 0*/) {
+//
+//                // Get material BSDF and pdf according to w_out, w_in and  face normal
+//                float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
+//
+//                // Evaluate MIS weight
+//                float MIS_weight = powerHeuristic(lightPdf, BSDFPdf);
+//
+//                // Accumulate path radiance
+//                // Sample from a direct light source, contribution = throughput * Li * bsdf * cos(theta) / pdf_light * MIS_weight
+//                pathState.radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
+//                    throughput / lightPdf * MIS_weight;
+//
+//                // update reconnect radiance/prefix point radiance
+//                if (pathState.currentVertexIndex < pathState.rcVertexLength)
+//                {
+//                    // Get the prefix throughput
+//                    vec3 thp = pathState.prefixThp;
+//                    pathState.prefixPathRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
+//                        thp / lightPdf * MIS_weight;
+//                }
+//                else
+//                {
+//                    // Get the reconnect throughput
+//                    vec3 thp = pathState.thp;
+//                    pathState.rcVertexRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
+//                        thp / lightPdf * MIS_weight;
+//                }
+//
+//                // Accumulate total radiance
+//                radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
+//                    throughput / lightPdf * MIS_weight;
+//            }
+//        }
+//
+//		if (pathState.currentVertexIndex < pathState.rcVertexLength)
+//		{
+//            // Pack the hit info of the prev vertex
+//            pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
+//
+//            // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
+//            pathState.preRcVertexWo = wo;
+//
+//            // Record the position of the prev vertex
+//            pathState.preRcVertexPos = state.position;
+//
+//            // Record the face normal of the prev vertex
+//            pathState.preRcVertexNorm = state.ffnormal;
+//
+//            // Record mat ID of prev vertex
+//            pathState.preRcMatId = int(state.matID);
+//		}
+//
+//        // Sample Next Ray
+//        {
+//            // Sample next ray according to BSDF
+//            sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
+//
+//            // Vlidate sample
+//            if (IsPdfInvalid(samplePdf)) {
+//                break;
+//            }
+//
+//            // Get roughness
+//            float matRoughness = state.mat.roughness;
+//
+//            // TODO
+//            // Set roughness threshold, now fixed, should be a variable 
+//            float kRoughnessThreshold = 0.2f;
+//
+//            // Flag shows if rough enough to reconnect
+//            bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
+//
+//            // Track last vertex roughness
+//            pathState.isLastVertexClassifiedAsRough = uint(vertexClassifiedAsRough);
+//
+//            // If the vertex is classified as rough and do not have a reconnect vertex
+//            if (pathState.currentVertexIndex < pathState.rcVertexLength && vertexClassifiedAsRough)
+//            {
+//                pathState.validRcPath = 1;
+//
+//                // Current vertex is prev vertex and next vertex is the reconnect vertex
+//                pathState.rcVertexLength = pathState.currentVertexIndex + 1;
+//
+//                // Record the pdf from the prev vertex to the reconnect vertex
+//                pathState.pdf = samplePdf;
+//            }
+//
+//            // evaluate the bsdf * cos(theta) / pdf
+//            vec3 bsdfCosWeight = sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
+//
+//            // If the vertex is in the prefix path
+//            if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
+//            {
+//                // Update prefix throughput
+//                pathState.prefixThp *= bsdfCosWeight;
+//            }
+//            // If the vertex is in the reconnect path
+//            else
+//            {
+//                // Accumulate reconnect throughput
+//                pathState.thp *= bsdfCosWeight;
+//            }
+//
+//            // Cache the bsdfCosWeight from the prev vertex to reconnect vertex
+//            if (pathState.currentVertexIndex + 1 == pathState.rcVertexLength)
+//            {
+//                pathState.cacheBsdfCosWeight = bsdfCosWeight;
+//                // pathState.cacheBsdfCosWeight = sampleBSDF;
+//            }
+//
+//            throughput *= bsdfCosWeight;
+//
+//            r.origin = OffsetRay(state.position, state.ffnormal);
+//            r.direction = sampleWi;
+//
+//            lastMaterial = state.mat;
+//        }
+//
+//        // Russian Roulette
+//        {
+//#if RR
+//            // If next vertex is the reconnect vertex, do not terminate the path
+//            bool nextReconnect = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex + 1 == pathState.rcVertexLength);
+//            // For Russian-Roulette (minimizing live state)
+//            float rrPcont = ((depth >= RR_DEPTH) && !nextReconnect) ?
+//                min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
+//                1.0;
+//            if (rand(prd.seed) >= rrPcont)
+//            {
+//                break;                // paths with low throughput that won't contribute
+//            }
+//            throughput /= rrPcont;  // boost the energy of the non-terminated paths
+//#endif
+//        }
+//    }
+//
+//    return radiance;
+//}
+
+//------------------------------------------------------------
+//
+float pHatIndirect(vec3 L)
 {
-    vec3 radiance = vec3(0.0);
-    vec3 throughput = vec3(1.0);
-    vec3 absorption = vec3(0.0);
+    return Luminance(L);
+}
 
-    float samplePdf;
-    vec3 sampleWi;
-    vec3 sampleBSDF;
-    Material lastMaterial;
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathState, ivec2 imageCoords)
+{
+    // state is the first hit point's state
+    pathState.preRcVertexHitInfo = encodeGeometryInfo(state, 0);
+    // Define some basic variables
+    vec3 throughput = vec3(/* multiBounce ? 4.0 :*/ 1.0);
+    pathState.preRcVertexWo = -ray.direction;
 
-    for (int depth = 0; depth < rtxState.maxDepth; depth++)
+    // Modulate for denoise
+    // state.mat.albedo = vec3(1.0);
+
+    for (int depth = 1; depth <= rtxState.maxDepth; depth++)
     {
-        pathState.currentVertexIndex++;
-        bool isPrimaryHit = (pathState.currentVertexIndex == 1);
-        ClosestHit(r);
+        vec3 wo = -ray.direction;
 
-        BsdfSampleRec bsdfSampleRec;
-
-        // Get Position, Normal, Tangents, Texture Coordinates, Color
-        ShadeState sstate;
-        State state;
-
-        // If hit the scene, get the state
-        if (prd.hitT != INFINITY)
+        // MIS
+        if (depth > 1)
         {
-            sstate = GetShadeState(prd);
+            vec3 Li, wi;
+            float lightPdf = SampleDirectLight(state, Li, wi);
 
-            //// Debug the world position
-            //return sstate.position;
-
-            state.position = sstate.position;
-            state.normal = sstate.normal;
-            state.tangent = sstate.tangent_u[0];
-            state.bitangent = sstate.tangent_v[0];
-            state.texCoord = sstate.text_coords[0];
-            state.matID = sstate.matIndex;
-            state.isEmitter = false;
-            state.specularBounce = false;
-            state.isSubsurface = false;
-            state.ffnormal = dot(state.normal, r.direction) <= 0.0 ? state.normal : -state.normal;
-
-            // Filling material structures
-            GetMaterialsAndTextures(state, r);
+            if (!IsPdfInvalid(lightPdf))
+            {
+                float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
+                float weight = MIS(lightPdf, BSDFPdf);
+                pathState.rcVertexRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) * throughput / lightPdf * weight;
+            }
         }
 
-        // Transfer normal to a uint
-        uint normprint = BinaryNorm(state.ffnormal);
+        // Sample next ray
+        vec3 sampleWi;
+        float samplePdf;
+        vec3 sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
 
-        // for debugging
-        //return vec3(float(cellIndex
-
-        // Flag shows if it is the reconnect vertex
-        bool connectabele = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex == pathState.rcVertexLength);
-
-        if (connectabele)
+        if (IsPdfInvalid(samplePdf))
         {
-            // If hit the scene, record the vertex position and normal
-            if (prd.hitT != INFINITY)
-            {
-                pathState.rcVertexPos = state.position;
-                pathState.rcVertexNorm = state.ffnormal;
-            }
-            else
-            {
-                pathState.rcEnvDir = r.direction;
-                pathState.rcEnv = 1;
-                pathState.rcVertexPos = state.position + r.direction * INFINITY * 0.8;
-                pathState.rcVertexNorm = -r.direction;
-            }
-            pathState.thp = vec3(1.0f);
-        }
-
-        // Hitting the environment
-        if (prd.hitT == INFINITY)
-        {
-            if (rtxState.debugging_mode != eNoDebug)
-            {
-                if (depth != rtxState.maxDepth - 1)
-                    return vec3(0);
-                if (rtxState.debugging_mode == eRadiance)
-                    return radiance;
-                else if (rtxState.debugging_mode == eWeight)
-                    return throughput;
-                else if (rtxState.debugging_mode == eRayDir)
-                    return (r.direction + vec3(1)) * 0.5;
-            }
-
-            vec3 env;
-            vec3 Li;
-            float MIS_weight = 1;
-            float lightPdf;
-            Li = EnvEval(r.direction, lightPdf);
-            if (depth > 0 /*&& lastMaterial.transmission == 0*/)
-            {
-                MIS_weight = powerHeuristic(samplePdf, lightPdf);
-            }
-            // Done sampling return
-
-            pathState.radiance += (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
-
-            if (pathState.currentVertexIndex < pathState.rcVertexLength)
-            {
-                vec3 thp = pathState.prefixThp;
-                pathState.prefixPathRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
-            }
-            else
-            {
-                vec3 thp = pathState.thp;
-                pathState.rcVertexRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
-            }
-
-            return radiance + (Li * rtxState.hdrMultiplier * throughput * MIS_weight);
-        }
-
-        if (state.isEmitter) {
-            float lightPdf;
-            vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
-            float MIS_weight = ((depth == 0 /*|| lastMaterial.transmission == 0*/) ? 1.0f : powerHeuristic(samplePdf, lightPdf));
-
-            pathState.radiance += Li * throughput * MIS_weight;
-            if (pathState.currentVertexIndex < pathState.rcVertexLength)
-            {
-                vec3 thp = pathState.prefixThp;
-                pathState.prefixPathRadiance += thp * Li * MIS_weight;
-            }
-            else
-            {
-                vec3 thp = pathState.thp;
-                pathState.rcVertexRadiance += thp * Li * MIS_weight;
-            }
-
-            radiance += Li * throughput * MIS_weight;
             break;
         }
 
-        // Color at vertices
-        state.mat.albedo *= sstate.color;
-
-        // Debugging info
-        if (rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
+        if (depth > 1)
         {
-            // return vec3(0.0f, 1.0f, 0.0f);
-            return DebugInfo(state);
+            // Accumulate throughputs
+            throughput *= sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
         }
-
-        vec3 wo = -r.direction;
-
-        // Do MIS 
+        else
         {
-            // Direct light radiance and direction from sample point to light sample
-            vec3 Li, wi;
-
-            // Sample direct light
-            float lightPdf = SampleDirectLight(state, Li, wi);
-
-            // If the light is visible, do MIS
-            if (!IsPdfInvalid(lightPdf) /*&& lastMaterial.transmission == 0*/) {
-
-                // Get material BSDF and pdf according to w_out, w_in and  face normal
-                float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
-
-                // Evaluate MIS weight
-                float MIS_weight = powerHeuristic(lightPdf, BSDFPdf);
-
-                // Accumulate path radiance
-                // Sample from a direct light source, contribution = throughput * Li * bsdf * cos(theta) / pdf_light * MIS_weight
-                pathState.radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
-                    throughput / lightPdf * MIS_weight;
-
-                // update reconnect radiance/prefix point radiance
-                if (pathState.currentVertexIndex < pathState.rcVertexLength)
-                {
-                    // Get the prefix throughput
-                    vec3 thp = pathState.prefixThp;
-                    pathState.prefixPathRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
-                        thp / lightPdf * MIS_weight;
-                }
-                else
-                {
-                    // Get the reconnect throughput
-                    vec3 thp = pathState.thp;
-                    pathState.rcVertexRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
-                        thp / lightPdf * MIS_weight;
-                }
-
-                // Accumulate total radiance
-                radiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) *
-                    throughput / lightPdf * MIS_weight;
-            }
-        }
-
-		if (pathState.currentVertexIndex < pathState.rcVertexLength)
-		{
-            // Pack the hit info of the prev vertex
-            pathState.preRcVertexHitInfo = encodeGeometryInfo(state, prd.hitT);
-
-            // Record the output direction of the prev vertex(start from the prev vertex), it will be used in bsdf eval
-            pathState.preRcVertexWo = wo;
-
-            // Record the position of the prev vertex
+            // Record the first hit
+            pathState.pdf = samplePdf;
             pathState.preRcVertexPos = state.position;
-
-            // Record the face normal of the prev vertex
             pathState.preRcVertexNorm = state.ffnormal;
-
-            // Record mat ID of prev vertex
             pathState.preRcMatId = int(state.matID);
-		}
+        }
 
-        // Sample Next Ray
+        // Generate next ray
+        ray.origin = OffsetRay(state.position, state.ffnormal);
+        ray.direction = sampleWi;
+
+        ClosestHit(ray);
+
+        // Hit Env
+        if (prd.hitT >= INFINITY)
         {
-            // Sample next ray according to BSDF
-            sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
-
-            // Vlidate sample
-            if (IsPdfInvalid(samplePdf)) {
-                break;
-            }
-
-            // Get roughness
-            float matRoughness = state.mat.roughness;
-
-            // TODO
-            // Set roughness threshold, now fixed, should be a variable 
-            float kRoughnessThreshold = 0.f;
-
-            // Flag shows if rough enough to reconnect
-            bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
-
-            // Track last vertex roughness
-            pathState.isLastVertexClassifiedAsRough = uint(vertexClassifiedAsRough);
-
-            // If the vertex is classified as rough and do not have a reconnect vertex
-            if (pathState.currentVertexIndex < pathState.rcVertexLength && vertexClassifiedAsRough)
+            if (depth > 1)
             {
-                pathState.validRcPath = 1;
-
-                // Current vertex is prev vertex and next vertex is the reconnect vertex
-                pathState.rcVertexLength = pathState.currentVertexIndex + 1;
-
-                // Record the pdf from the prev vertex to the reconnect vertex
-                pathState.pdf = samplePdf;
+                float lightPdf;
+                vec3 Li = EnvEval(sampleWi, lightPdf);
+                float weight = MIS(samplePdf, lightPdf);
+                pathState.rcVertexRadiance += Li * throughput * weight;
             }
-
-            // evaluate the bsdf * cos(theta) / pdf
-            vec3 bsdfCosWeight = sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
-
-            // If the vertex is in the prefix path
-            if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
-            {
-                // Update prefix throughput
-                pathState.prefixThp *= bsdfCosWeight;
-            }
-            // If the vertex is in the reconnect path
             else
             {
-                // Accumulate reconnect throughput
-                pathState.thp *= bsdfCosWeight;
+                // Hack here. To let samples from the infinity light able to be temporally reused
+                // giSample.matInfo = uvec2(0xFFFFFFFF, 0xFFFFFFFF);
+
+                // Update the Reconnect point
+                pathState.rcEnvDir = ray.direction;
+                pathState.rcEnv = 1;
+                pathState.rcVertexPos = state.position + sampleWi * INFINITY * 0.8;
+                pathState.rcVertexNorm = -sampleWi;
             }
-
-            // Cache the bsdfCosWeight from the prev vertex to reconnect vertex
-            if (pathState.currentVertexIndex + 1 == pathState.rcVertexLength)
-            {
-                pathState.cacheBsdfCosWeight = bsdfCosWeight;
-                // pathState.cacheBsdfCosWeight = sampleBSDF;
-            }
-
-            throughput *= bsdfCosWeight;
-
-            r.origin = OffsetRay(state.position, state.ffnormal);
-            r.direction = sampleWi;
-
-            lastMaterial = state.mat;
+            break;
         }
 
-        // Russian Roulette
+        state = GetState(prd, ray.direction);
+        GetMaterials(state, ray);
+
+        // Hit Light
+        if (state.isEmitter)
         {
-#if RR
-            // If next vertex is the reconnect vertex, do not terminate the path
-            bool nextReconnect = (pathState.isLastVertexClassifiedAsRough > 0) && (pathState.currentVertexIndex + 1 == pathState.rcVertexLength);
-            // For Russian-Roulette (minimizing live state)
-            float rrPcont = ((depth >= RR_DEPTH) && !nextReconnect) ?
-                min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
-                1.0;
-            if (rand(prd.seed) >= rrPcont)
+            if (depth > 1)
             {
-                break;                // paths with low throughput that won't contribute
-            }
-            throughput /= rrPcont;  // boost the energy of the non-terminated paths
-#endif
-        }
-    }
 
-    return radiance;
+                float lightPdf;
+                vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
+                float weight = MIS(samplePdf, lightPdf);
+                pathState.rcVertexRadiance += Li * throughput * weight;
+            }
+            else
+            {
+                // Record the Reconnect point
+                pathState.rcVertexPos = state.position;
+                pathState.rcVertexNorm = state.ffnormal;
+            }
+            break;
+        }
+
+        if (depth == 1)
+        {
+            // Record the first hit
+            pathState.rcVertexPos = state.position;
+            pathState.rcVertexNorm = state.ffnormal;
+        }
+
+#ifndef RR
+        float rrPcont = (1 >= RR_DEPTH) ? min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) : 1.0;
+        if (rand(prd.seed) >= rrPcont) {
+            break;
+        }
+        throughput /= rrPcont;
+#endif
+    }
 }
 
 vec3 randomColor(vec3 _in) {
@@ -713,6 +848,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     vec3 pixelColor = vec3(0);
 
     Ray ray = raySpawn(imageCoords, ivec2(sizeImage));
+    // imageStore(debugUintImage, imageCoords, ivec4(prd.seed));
 
     PathPayLoad pathState;
     pathState.preRcVertexHitInfo = uvec4(0);
@@ -738,8 +874,18 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     // rcVertexLength is the number of vertices in the reconnect path, should be initialized to the max depth + 1
     pathState.rcVertexLength = rtxState.maxDepth + 1;
 
-    vec3 radiance = PathTrace_Initial(ray, pathState);
+    State state;
+    float depth;
+    if (!getIndirectStateFromGBuffer(thisGbuffer, ray, imageCoords, state, depth))
+    {
+		reconnectionDataBuffer[idx].preRcVertexHitInfo = uvec4(0);
+        return vec3(0);
+    }
+    state.position += state.ffnormal * 2e-2;
+    PathTrace_initial_Indirect(state, ray, pathState, imageCoords);
 
+    vec3 radiance;
+    // vec3 radiance = PathTrace_Initial(ray, pathState);
     // Assign reconnect data
     reconnectionDataBuffer[idx].pathPreThp = pathState.prefixThp;
     reconnectionDataBuffer[idx].pathLength = pathState.rcVertexLength;
@@ -757,6 +903,7 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
     initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
 	initialSampleBuffer[idx].preRcMatId = pathState.preRcMatId;
+    initialSampleBuffer[idx].pHat = pHatIndirect(pathState.rcVertexRadiance);
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
@@ -781,7 +928,6 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     }
 
 
-    return radiance;
+    // return radiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
-
 }

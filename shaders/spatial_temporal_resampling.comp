@@ -23,6 +23,7 @@ layout(push_constant) uniform _RtxState
   RtxState rtxState;
 };
 
+
 #include "globals.glsl"
 
 #include "layouts.glsl"
@@ -32,18 +33,21 @@ layout(push_constant) uniform _RtxState
 #include "compress.glsl"
 #include "pbr_metallicworkflow.glsl"
 
+PtPayload prd;
+ShadowHitPayload shadow_payload;
+ivec2 imageCoords;
+uint idx;
+
+#include "traceray_rq.glsl"
+#include "pathtrace_initial.glsl"
+
 layout(local_size_x = 8, local_size_y = 8) in;
 
-Ray raySpawn(ivec2 coord, ivec2 sizeImage) {
-    // Compute sampling position between [-1 .. 1]
-    const vec2 pixelCenter = vec2(coord) + 0.5;
-    const vec2 inUV = pixelCenter / vec2(sizeImage.xy);
-    vec2 d = inUV * 2.0 - 1.0;
-    // Compute ray origin and direction
-    vec4 origin = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
-    vec4 target = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
-    vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
-    return Ray(origin.xyz, normalize(direction.xyz));
+//---------------------------------------
+// 
+ivec2 indSize()
+{
+	return rtxState.size;
 }
 
 // just return the luminance as the weight function(unnormalized target function)
@@ -109,13 +113,7 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 	// Update the reservoir r1
 	if(isUpdate)
 	{
-		r1.sPos = r2.sPos;
-		r1.sNorm = r2.sNorm;
-		r1.radiance = r2.radiance;
-		r1.age = r2.age;
-		r1.rcEnv = r2.rcEnv;
-		r1.rcEnvDir = r2.rcEnvDir;
-		r1.vMatId = r2.vMatId;
+		r1.giSample = r2.giSample;
 	}
 
 	return isUpdate;
@@ -127,109 +125,260 @@ void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 	resv.bigW = weight > 0 ? weightSum / weight : 0;
 }
 
+//-----------------------
+//
+// void StResample(ivec2 imageCoords)
+// {
+// 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+
+// 	// Create a random seed
+// 	uint rSeed = tea(idx, rtxState.frame * rtxState.maxSamples);
+
+// 	// Get reconnection data of this pixel
+// 	ReconnectionData rcData = reconnectionDataBuffer[idx];
+
+// 	// If the pixel has no reconnection data, return
+// 	if(rcData.preRcVertexHitInfo == vec4(0))
+// 	{
+// 		return;
+// 	}
+	
+// 	// Get the initial sample of the pixel
+// 	Reservoir initialResvSample = initialReserviors[idx];
+
+// 	// If the initial reservoir hit environment
+// 	if(initialResvSample.rcEnv == 1)
+// 	{
+// 		initialResvSample.sPos = initialResvSample.vPos + initialResvSample.rcEnvDir;
+// 	}
+
+// 	ivec2 motionIdx = imageLoad(motionVector, imageCoords).xy;
+
+// 	// Get the previous linear index
+// 	uint preIdx = rtxState.size.x * motionIdx.y + motionIdx.x;
+
+// 	// Temporal Check
+// 	// Check if the prev sample is valid
+// 	bool isPreValid = inBound(motionIdx, rtxState.size);
+
+// 	// Get the previous sample
+// 	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
+
+// 	// If the temporal sample is valid, check the geometry
+// 	if(isPreValid)
+// 	{
+// 		// TODO: 0.1, 0.8 are the threshold values
+// 		isPreValid = (dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.5f) && (temporalPrevReservoir.vMatId == initialResvSample.vMatId) && length(temporalPrevReservoir.vPos - initialResvSample.vPos) < 0.5f;
+
+// 		// Get the prev Camera Pos
+// 		vec3 prevCamPos = vec3(inverse(sceneCamera.lastView) * vec4(0,0,0,1));
+
+// 		// Check the depth
+// 		float viewDepth = length(rtxState.cameraPos - initialResvSample.vPos);
+// 		float prevViewDepth = length(prevCamPos - initialResvSample.vPos);
+
+// 		// a random number to discard temporal sample
+// 		float randNum = rand(rSeed);
+// 	}
+
+// 	// Temporal Reuse
+// 	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, rtxState.reservoirClamp * 2);
+// 	if(!isPreValid)
+// 	{
+// 		// If the temporal sample is not valid or is too old, reset M
+// 		temporalPrevReservoir.M = 0;
+// 	}
+
+// 	// To use 1 sample
+// 	// temporalPrevReservoir.M = 0;
+
+// 	// If the pixel has no reconnection data, return
+// 	// Get the target pdf of the prev reservoir
+// 	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
+
+// 	// Compute the weight sum(W = Weight_s / (M * targetpdf))
+// 	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.bigW);
+
+// 	// Get the target pdf of the current reservoir
+// 	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos, rcData);
+
+// 	// merge initialResvSample and temporalPrevReservoir
+// 	bool isUpdate = MergeReservoir(rSeed, temporalPrevReservoir, initialResvSample, tpCurrent, wSum);
+
+// 	// Compute new target pdf
+// 	float tpNew = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
+
+// 	// Compute final weight
+// 	ComputeFinalWeight(temporalPrevReservoir, tpNew, wSum);
+// 	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, rtxState.reservoirClamp * 2);
+// 	temporalPrevReservoir.age++;
+
+// 	// Set current vPos and vNormal
+// 	// temporalPrevReservoir.vPos = initialResvSample.vPos;
+//     // temporalPrevReservoir.vNorm = initialResvSample.vNorm;
+
+// 	// Write the temporal reservoir to the current buffer
+// 	currentReserviors[preIdx] = temporalPrevReservoir;
+
+// 	// Debug
+// 	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
+
+// 	// DebugFloatBuffer
+// 	if(idx == 0)
+// 	{
+// 		debugFloatBuffer[6] = rtxState.cameraPos.x;
+// 		debugFloatBuffer[7] = rtxState.cameraPos.y;
+// 		debugFloatBuffer[8] = rtxState.cameraPos.z;
+// 	}
+// }
+
+//-------------------------------------------------------------
+//
+bool findTemporalNeighbor(
+    Reservoir initialResv, float reprojDepth, ivec2 lastCoord, inout Reservoir resv
+) 
+{
+    vec3 pnorm; 
+    float pdepth; 
+    uint matHash;
+    
+	loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
+    ivec2 coord = lastCoord;
+    
+    if (inBound(coord, indSize())) 
+	{
+		Reservoir tempResv = prevReserviors[coord.y * indSize().x + coord.x];
+        if (initialResv.giSample.vMatId == tempResv.giSample.vMatId) 
+		{
+            if (dot(initialResv.giSample.nv, tempResv.giSample.nv) > 0.5 && reprojDepth < pdepth * 1.1) 
+			{
+                resv = tempResv;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+//---------------------------------------
+//
+bool resvInvalid(Reservoir resv) 
+{
+    return isnan(resv.weightSum) || resv.weightSum < 0.0;
+}
+
+
+//---------------------------------------
+//
+void resvReset(inout Reservoir resv) 
+{
+    resv.M = 0;
+    resv.weightSum = 0;
+    resv.bigW = 0;
+}
+
+//---------------------------------------
+//
+void resvCheckValidity(inout Reservoir resv) 
+{
+    if (resvInvalid(resv)) 
+    {
+        resvReset(resv);
+    }
+}
+
+//---------------------------------------
+//
+bool GISampleValid(GISample giSample) 
+{
+    return giSample.nv.x < 1.1 && !hasNan(giSample.L);
+}
+
+void resvUpdate(inout Reservoir resv, GISample newSample, float newWeight, float r) 
+{
+    resv.weightSum += newWeight;
+    resv.M += 1;
+    if (r * resv.weightSum < newWeight) 
+    {
+        resv.giSample = newSample;
+		resv.bigW = resv.weightSum / (resv.giSample.pHat * float(resv.M));
+    }
+}
+
+//--------------------------------------------------
+//
+void resvClamp(inout Reservoir resv, int clamp) 
+{
+    if (resv.M > clamp) 
+    {
+        resv.weightSum *= float(clamp) / float(resv.M);
+        resv.M = clamp;
+    }
+}
+
+//--------------------------------------------------
+//
 void StResample(ivec2 imageCoords)
 {
-	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+	// Get 1D index
+	idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
-	// Create a random seed
-	uint rSeed = tea(idx, rtxState.frame * rtxState.maxSamples);
+	Reservoir initialRev = initialReserviors[idx];
+	Reservoir resv;
+	resvReset(resv);
 
-	// Get reconnection data of this pixel
 	ReconnectionData rcData = reconnectionDataBuffer[idx];
 
+	uvec4 hitInfo = rcData.preRcVertexHitInfo;
 	// If the pixel has no reconnection data, return
 	if(rcData.preRcVertexHitInfo == vec4(0))
 	{
 		return;
 	}
-	
-	// Get the initial sample of the pixel
-	Reservoir initialResvSample = initialReserviors[idx];
 
-	// If the initial reservoir hit environment
-	if(initialResvSample.rcEnv == 1)
-	{
-		initialResvSample.sPos = initialResvSample.vPos + initialResvSample.rcEnvDir;
-	}
+	// Unpack metallic and roughness
+    vec2 metallicRoughness = unpackUnorm4x8(hitInfo.z).xy;
 
-	ivec2 motionIdx = imageLoad(motionVector, imageCoords).xy;
+	// Unpack Albedo
+    vec3 albedo = unpackUnorm4x8(hitInfo.w).rgb;
 
-	// Get the previous linear index
-	uint preIdx = rtxState.size.x * motionIdx.y + motionIdx.x;
+	// Unpack Normal
+	vec3 prevNormal = decompress_unit_vec(hitInfo.y);
 
-	// Temporal Check
-	// Check if the prev sample is valid
-	bool isPreValid = inBound(motionIdx, rtxState.size);
-
-	// Get the previous sample
-	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
-	// imageStore(debugUintImage, imageCoords, ivec4(ivec2(motionIdx), 0, 1));
-	// If the temporal sample is valid, check the geometry
-	if(isPreValid)
-	{
-		// TODO: 0.1, 0.8 are the threshold values
-		isPreValid = (dot(initialResvSample.vNorm, temporalPrevReservoir.vNorm) > 0.5f) && (temporalPrevReservoir.vMatId == initialResvSample.vMatId);
-
-		// Get the prev Camera Pos
-		vec3 prevCamPos = vec3(inverse(sceneCamera.lastView) * vec4(0,0,0,1));
-
-		// Check the depth
-		float viewDepth = length(rtxState.cameraPos - initialResvSample.vPos);
-		float prevViewDepth = length(prevCamPos - initialResvSample.vPos);
-
-		// a random number to discard temporal sample
-		float randNum = rand(rSeed);
-	}
+	State prevRcState;
+	prevRcState.position = initialRev.giSample.xv;
+	prevRcState.ffnormal = initialRev.giSample.nv;
+	prevRcState.mat.albedo = albedo;
+	prevRcState.mat.metallic = metallicRoughness.x;
+	prevRcState.mat.roughness = max(metallicRoughness.y, 0.001);
 
 	// Temporal Reuse
-	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, 30);
-	if(!isPreValid || temporalPrevReservoir.age > 500)
-	{
-		// If the temporal sample is not valid or is too old, reset M
-		temporalPrevReservoir.M = 0;
-	}
+	float reprojDepth = length(sceneCamera.lastPosition - prevRcState.position);
+    ivec2 motionIdx = imageLoad(motionVector, imageCoords).xy;
+	findTemporalNeighbor(initialRev, reprojDepth, motionIdx, resv);
 
-	// To use 1 sample
-	// temporalPrevReservoir.M = 0;
+	vec3 wo = normalize(rcData.preRcVertexWo);
+	GISample giSample = initialRev.giSample;
 
-	// If the pixel has no reconnection data, return
-	// Get the target pdf of the prev reservoir
-	float tpPrev = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
+	float sampleWeight = 0.0;
+	if (GISampleValid(giSample)) 
+    {
+        giSample.pHat = pHatIndirect(giSample.L);
+        sampleWeight = (giSample.pHat / giSample.p);
+        if (isnan(sampleWeight) || sampleWeight < 0.0) 
+        {
+            sampleWeight = 0.0;
+        }
+    }
 
-	// Compute the weight sum(W = Weight_s / (M * targetpdf))
-	float wSum = temporalPrevReservoir.M * tpPrev * max(0.f, temporalPrevReservoir.bigW);
+	// Update the temporal reservoir
+	resvUpdate(resv, giSample, sampleWeight, rand(prd.seed));
 
-	// Get the target pdf of the current reservoir
-	float tpCurrent = EvalTargetPdf(initialResvSample.radiance, initialResvSample.vPos, initialResvSample.sPos, rcData);
-
-	// merge initialResvSample and temporalPrevReservoir
-	bool isUpdate = MergeReservoir(rSeed, temporalPrevReservoir, initialResvSample, tpCurrent, wSum);
-
-	// Compute new target pdf
-	float tpNew = EvalTargetPdf(temporalPrevReservoir.radiance, initialResvSample.vPos, temporalPrevReservoir.sPos, rcData);
-
-	// Compute final weight
-	ComputeFinalWeight(temporalPrevReservoir, tpNew, wSum);
-	temporalPrevReservoir.M = clamp(temporalPrevReservoir.M, 0, 30);
-	temporalPrevReservoir.age++;
-
-	// Set current vPos and vNormal
-	temporalPrevReservoir.vPos = initialResvSample.vPos;
-    temporalPrevReservoir.vNorm = initialResvSample.vNorm;
+	resvCheckValidity(resv);
+    resvClamp(resv, rtxState.reservoirClamp * 2);
 
 	// Write the temporal reservoir to the current buffer
-	currentReserviors[preIdx] = temporalPrevReservoir;
-
-	// Debug
-	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
-
-	// DebugFloatBuffer
-	if(idx == 0)
-	{
-		debugFloatBuffer[6] = rtxState.cameraPos.x;
-		debugFloatBuffer[7] = rtxState.cameraPos.y;
-		debugFloatBuffer[8] = rtxState.cameraPos.z;
-	}
+	currentReserviors[idx] = resv;
 }
 
 //
@@ -241,14 +390,14 @@ void main()
 	uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
 	ivec2 imageRes    = rtxState.size;
-	ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+	imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
 
 	// Check if the pixel is outside the image
 	if(imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
 	{
 		return;
 	}
-
+	prd.seed = tea(indSize().x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.time);
 
 	StResample(imageCoords);
 	return;

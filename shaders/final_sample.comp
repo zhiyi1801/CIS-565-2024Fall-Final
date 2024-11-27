@@ -58,8 +58,8 @@ void main()
 	// Write the final sample
 	FinalSample s;
 
-	s.dir = ((r.rcEnv == 1) ? normalize(r.rcEnvDir) : normalize(r.sPos - r.vPos));
-    s.Li = r.radiance * max(0.f, r.bigW);
+	s.dir = ((r.giSample.rcEnv == 1) ? normalize(r.giSample.rcEnvDir) : normalize(r.giSample.xs - r.giSample.xv));
+    s.Li = r.giSample.L * max(0.f, r.bigW);
 
 	finalSamples[idx] = s;
 }

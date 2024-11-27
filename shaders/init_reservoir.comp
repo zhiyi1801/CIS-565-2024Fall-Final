@@ -134,22 +134,23 @@ Reservoir SetGIReservoir(InitialSample s)
 {
   Reservoir initialReservoir;
 
-  initialReservoir.vPos = s.preRcVertexPos;
-  initialReservoir.vNorm = s.preRcVertexNorm;
-  initialReservoir.sPos = s.rcVertexPos;
-  initialReservoir.sNorm = s.rcVertexNorm;
-  initialReservoir.radiance = s.rcVertexLo;
+  initialReservoir.giSample.xv = s.preRcVertexPos;
+  initialReservoir.giSample.nv = s.preRcVertexNorm;
+  initialReservoir.giSample.xs = s.rcVertexPos;
+  initialReservoir.giSample.ns = s.rcVertexNorm;
+  initialReservoir.giSample.L = s.rcVertexLo;
 
-  float pHat = 
-  initialReservoir.weightSum = 1.f;
+  initialReservoir.giSample.p = s.pdf;
+  initialReservoir.giSample.pHat = s.pHat;
+  initialReservoir.giSample.vMatId = s.preRcMatId;
+
+  initialReservoir.giSample.rcEnv = s.rcEnv;
+  initialReservoir.giSample.rcEnvDir = s.rcEnvDir;
+
+  initialReservoir.weightSum = s.pdf > 0 ? s.pHat/s.pdf : 0;
   initialReservoir.bigW = s.pdf > 0.f ? 1.f / s.pdf : 0.f;
   initialReservoir.M = 1u;
   initialReservoir.age = 0;
-
-  initialReservoir.rcEnv = s.rcEnv;
-  initialReservoir.rcEnvDir = s.rcEnvDir;
-
-  initialReservoir.vMatId = s.preRcMatId;
 
   return initialReservoir;
 }
@@ -249,7 +250,7 @@ void main()
   Reservoir r = SetGIReservoir(initialSampleBuffer[idx]);
 
   // Build HashAppendData
-  HashAppendData data = BuildHashAppendData(r.vPos, r.vNorm, idx, params, imageCoords);
+  HashAppendData data = BuildHashAppendData(r.giSample.xv, r.giSample.nv, idx, params, imageCoords);
 
   // For Debug
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
