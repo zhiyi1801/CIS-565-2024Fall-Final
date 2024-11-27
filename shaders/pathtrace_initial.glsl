@@ -394,7 +394,7 @@ uvec4 encodeGeometryInfo(State state, float depth) {
     // Depth
     gInfo.x = floatBitsToUint(depth);
 
-    gInfo.y = compress_unit_vec(state.normal);
+    gInfo.y = compress_unit_vec(state.ffnormal);
     gInfo.z = packUnorm4x8(vec4(state.mat.metallic, state.mat.roughness, (state.mat.ior - 1.0) / MAX_IOR_MINUS_ONE, state.mat.transmission));
     gInfo.w = packUnorm4x8(vec4(state.mat.albedo, 1.0)) & 0xFFFFFF; //agbr
     gInfo.w += hash8bit(state.matID);

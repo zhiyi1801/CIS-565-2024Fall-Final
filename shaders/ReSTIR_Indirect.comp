@@ -294,18 +294,21 @@ vec3 ReSTIRIndirect(float dist, float primSamplePdf, vec3 primWo, State primStat
             sampleWeight = 0.0;
         }
     }
-    resvUpdate(resv, giSample, sampleWeight, rand(prd.seed));
+    float rnd = rand(prd.seed);
+    resvUpdate(resv, giSample, sampleWeight, rnd);
 
     if(idx == 3 && debugUintBuffer[50] <= 5)
 	{
 		debugReserviors[20 + 0].giSample = resv.giSample;
         debugReserviors[20 + 0].bigW = resv.bigW;
         debugReserviors[20 + 0].M = resv.M;
+        debugReserviors[20 + 0].weightSum = resv.weight;
         debugReserviors[20 + 1].giSample = prevIndirectResv[idx].giSample;
         debugReserviors[20 + 1].bigW = prevIndirectResv[idx].bigW;
         debugReserviors[20 + 1].M = prevIndirectResv[idx].M;
+        debugReserviors[20 + 1].weightSum = prevIndirectResv[idx].weight;
         debugReserviors[20 + 2].giSample = giSample;
-        debugUintBuffer[50] += 1;
+        debugReserviors[20 + 3].giSample.pHat = prd.seed;
 	}
 
     resvCheckValidity(resv);
@@ -324,6 +327,8 @@ vec3 ReSTIRIndirect(float dist, float primSamplePdf, vec3 primWo, State primStat
         
         //indirect = giSample.L / giSample.pHat * resv.weight / float(resv.M);
         //indirect *= BSDF(primState, primWo, giSample.nv, primWi) * absDot(giSample.nv, primWi);
+
+        imageStore(resultImage, imageCoords, vec4(giSample.nv, 1));
     }
     vec3 res = clampRadiance(indirect);
     res = HDRToLDR(res);
@@ -361,11 +366,11 @@ void main()
     GISample giSample;
 
     pathTraceIndirect(state, ray, primSamplePdf, primWo, primState, giSample);
+    prd.seed = tea(indSize().x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, rtxState.time);
     vec3 pixelColor = ReSTIRIndirect(depth, primSamplePdf, primWo, primState, giSample);
 
     pixelColor = clampRadiance(pixelColor);
     vec4 c00 = vec4(pixelColor, 1.0);
 
-    imageStore(resultImage, imageCoords, c00);
-
+    // imageStore(resultImage, imageCoords, c00);
 }

@@ -94,7 +94,7 @@ vec3 metallicWorkflowBSDF(State state, vec3 n, vec3 wo, vec3 wi) {
 
     float cosO = dot(n, wo);
     float cosI = dot(n, wi);
-    if (cosI * cosO < 1e-7f) {
+    if (cosI * cosO < 1e-4f) {
         return vec3(0.0);
     }
 

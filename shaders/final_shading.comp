@@ -25,29 +25,23 @@ layout(push_constant) uniform _RtxState
 
 #include "globals.glsl"
 
+PtPayload prd;
+ShadowHitPayload shadow_payload;
+ivec2 imageCoords;
+uint idx;
+
+#include "random.glsl"
+#include "traceray_rq.glsl"
+
 #include "layouts.glsl"
 #include "random.glsl"
 #include "common.glsl"
 #include "random.glsl"
 #include "compress.glsl"
 #include "pbr_metallicworkflow.glsl"
+#include "pathtrace_initial.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
-
-//
-//--------------------------------------------------------------------------------------------------
-//
-vec3 clampRadiance(vec3 radiance) {
-    if (isnan(radiance.x) || isnan(radiance.y) || isnan(radiance.z)) {
-        return vec3(0.0);
-    }
-
-    float lum = Luminance(radiance);
-    if (lum > rtxState.fireflyClampThreshold) {
-        radiance *= rtxState.fireflyClampThreshold / lum;
-    }
-    return radiance;
-}
 
 //
 //--------------------------------------------------------------------------------------------------
@@ -58,7 +52,7 @@ void main()
 	uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
 	ivec2 imageRes    = rtxState.size;
-	ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
+	imageCoords = ivec2(gl_GlobalInvocationID.xy);  //SampleSizzled();
 
 	// Check if the pixel is outside the image
 	if(imageCoords.x >= imageRes.x || imageCoords.y >= imageRes.y)
@@ -67,7 +61,7 @@ void main()
 	}
 
 	// Compute 1D index
-	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+	idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 	
 	// Compute the color
 	// Get the reconnection data
@@ -91,7 +85,7 @@ void main()
     vec3 albedo = unpackUnorm4x8(hitInfo.w).rgb;
 
 	// Unpack Normal
-	vec3 prevNormal = decompress_unit_vec(hitInfo.y);
+	vec3 prevNormal = currentReserviors[idx].giSample.nv;
 
 	// Compute final color
 	vec3 color = vec3(0.0);
@@ -105,13 +99,18 @@ void main()
 	// Compute BSDF*cos
 	vec3 bsdfCos = metallicWorkflowBSDF(state, prevNormal, data.preRcVertexWo, fSample.dir) * absDot(prevNormal, fSample.dir);
 	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
-	color = clampRadiance(color);
+	// color = clampRadiance(color);
+	if(color.x > 10 || color.y > 10 || color.z > 10)
+	{
+		color = vec3(0.0f);
+	}
+	imageStore(resultImage, imageCoords, vec4(color, 1.0f));
     color = HDRToLDR(color);
 
 	// Update the result image
 	if(rtxState.restirDebugMode == eReSTIR)
 	{
-		imageStore(resultImage, imageCoords, vec4(color, 1.0f));
+		// imageStore(resultImage, imageCoords, vec4(color, 1.0f));
 	}
 
 	//Accumulated
