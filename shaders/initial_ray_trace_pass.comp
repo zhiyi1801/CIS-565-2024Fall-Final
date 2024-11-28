@@ -139,11 +139,11 @@ void main()
   }
 
   // A flag shows if the pixel first hit the environment
-  bool firstHitEnv = (uintBitsToFloat(imageLoad(thisGbuffer, imageCoords).x) == INFINITY);
+  bool firstHitEnv = (uintBitsToFloat(imageLoad(thisGbuffer, imageCoords).x) > INFINITY * 0.9);
 
   if(firstHitEnv || (initialSampleBuffer[idx].preRcVertexNorm.x > 2.0f))
   {
-      // imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+      imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
   }
 
   // Debug

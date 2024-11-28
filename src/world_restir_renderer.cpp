@@ -705,10 +705,10 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	// --------------------------------------------
 	// 
 	// Indirect Light Pass
-	InsertPerfMarker(cmdBuf, "Compute Shader: Indirect Light", color[(count++) % 3]);
-	vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_IndirectPipeline);
-	vkCmdDispatch(cmdBuf, (size.width + (RayTraceBlockSizeX - 1)) / RayTraceBlockSizeX, (size.height + (RayTraceBlockSizeY - 1)) / RayTraceBlockSizeY, 1);
-	EndPerfMarker(cmdBuf);
+	//InsertPerfMarker(cmdBuf, "Compute Shader: Indirect Light", color[(count++) % 3]);
+	//vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_IndirectPipeline);
+	//vkCmdDispatch(cmdBuf, (size.width + (RayTraceBlockSizeX - 1)) / RayTraceBlockSizeX, (size.height + (RayTraceBlockSizeY - 1)) / RayTraceBlockSizeY, 1);
+	//EndPerfMarker(cmdBuf);
 
 	// --------------------------------------------
 	// Initial Sample Pass

@@ -242,13 +242,16 @@ bool findTemporalNeighbor(
     float pdepth; 
     uint matHash;
     
-	loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
+	// loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
+	Reservoir tempResv = prevReserviors[lastCoord.y * indSize().x + lastCoord.x];
+	pnorm = tempResv.giSample.nv;
+	pdepth = length(tempResv.giSample.xv - sceneCamera.lastPosition);
+	matHash = tempResv.giSample.vMatId;
+
     ivec2 coord = lastCoord;
 
     if (inBound(coord, indSize())) 
 	{
-		Reservoir tempResv = prevReserviors[coord.y * indSize().x + coord.x];
-
         if (initialResv.giSample.vMatId == tempResv.giSample.vMatId) 
 		{
             if (dot(initialResv.giSample.nv, tempResv.giSample.nv) > 0.5 && reprojDepth < pdepth * 1.1) 
@@ -352,6 +355,7 @@ void StResample(ivec2 imageCoords)
 	prevRcState.mat.metallic = metallicRoughness.x;
 	prevRcState.mat.roughness = max(metallicRoughness.y, 0.001);
 
+	//-----------------------------------
 	// Temporal Reuse
 	float reprojDepth = length(sceneCamera.lastPosition - prevRcState.position);
     ivec2 motionIdx = imageLoad(motionVector, imageCoords).xy;
@@ -371,27 +375,10 @@ void StResample(ivec2 imageCoords)
         }
     }
 
-	if(idx == 3 && debugUintBuffer[40] <= 5)
-	{
-		debugReserviors[0] = resv;
-	}
-
 	float rnd = rand(prd.seed);
 	resvUpdate(resv, giSample, sampleWeight, rnd);
-	resv.bigW = resv.weightSum / (resv.giSample.pHat * float(resv.M));
+	resv.bigW = resv.giSample.pHat == 0 ? 0 : resv.weightSum / (resv.giSample.pHat * float(resv.M));
 	// imageStore(debugImage, imageCoords, vec4(resv.weightSum, resv.giSample.pHat, resv.M, resv.bigW));
-	if(idx == 3 && debugUintBuffer[40] <= 5)
-	{
-		debugReserviors[1] = resv;
-		debugReserviors[2] = prevReserviors[idx];
-		debugReserviors[3].giSample = giSample;
-		debugReserviors[3].giSample.pHat = prd.seed;
-		if(resv.giSample.L.x != debugReserviors[20 + 0].giSample.L.x)
-		{
-			debugUintBuffer[40] = 10;
-			debugUintBuffer[50] = 10;
-		}
-	}
 
 	// Update the temporal reservoir
 	resvCheckValidity(resv);
@@ -400,7 +387,9 @@ void StResample(ivec2 imageCoords)
 	// Write the temporal reservoir to the current buffer
 	currentReserviors[idx] = resv;
 
+	//-------------------------------
 	// Spatial Reuse
+	Reservoir spatialResv = prevReserviors[motionIdx.y * indSize().x + motionIdx.x];
 }
 
 //
