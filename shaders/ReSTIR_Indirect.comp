@@ -299,16 +299,16 @@ vec3 ReSTIRIndirect(float dist, float primSamplePdf, vec3 primWo, State primStat
 
     if(idx == 3 && debugUintBuffer[50] <= 5)
 	{
-		debugReserviors[20 + 0].giSample = resv.giSample;
-        debugReserviors[20 + 0].bigW = resv.bigW;
-        debugReserviors[20 + 0].M = resv.M;
-        debugReserviors[20 + 0].weightSum = resv.weight;
-        debugReserviors[20 + 1].giSample = prevIndirectResv[idx].giSample;
-        debugReserviors[20 + 1].bigW = prevIndirectResv[idx].bigW;
-        debugReserviors[20 + 1].M = prevIndirectResv[idx].M;
-        debugReserviors[20 + 1].weightSum = prevIndirectResv[idx].weight;
-        debugReserviors[20 + 2].giSample = giSample;
-        debugReserviors[20 + 3].giSample.pHat = prd.seed;
+		debugReservoirs[20 + 0].giSample = resv.giSample;
+        debugReservoirs[20 + 0].bigW = resv.bigW;
+        debugReservoirs[20 + 0].M = resv.M;
+        debugReservoirs[20 + 0].weightSum = resv.weight;
+        debugReservoirs[20 + 1].giSample = prevIndirectResv[idx].giSample;
+        debugReservoirs[20 + 1].bigW = prevIndirectResv[idx].bigW;
+        debugReservoirs[20 + 1].M = prevIndirectResv[idx].M;
+        debugReservoirs[20 + 1].weightSum = prevIndirectResv[idx].weight;
+        debugReservoirs[20 + 2].giSample = giSample;
+        debugReservoirs[20 + 3].giSample.pHat = prd.seed;
 	}
 
     resvCheckValidity(resv);

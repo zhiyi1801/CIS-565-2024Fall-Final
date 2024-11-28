@@ -63,7 +63,6 @@ void main()
 			atomicCompSwap(debugUintBuffer[3], 0, indexBuffer[0] - cellCounterBuffer[0]);
 		}
 	}
-
 	else
 	{
 		// DebugUintBuffer1

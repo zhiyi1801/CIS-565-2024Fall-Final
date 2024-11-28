@@ -85,7 +85,7 @@ void main()
     vec3 albedo = unpackUnorm4x8(hitInfo.w).rgb;
 
 	// Unpack Normal
-	vec3 prevNormal = currentReserviors[idx].giSample.nv;
+	vec3 prevNormal = currentReservoirs[idx].giSample.nv;
 
 	// Compute final color
 	vec3 color = vec3(0.0);

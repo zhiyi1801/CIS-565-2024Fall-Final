@@ -64,10 +64,10 @@ layout(set = S_RESTIR, binding = eCurrentDirectReservoirs, scalar) buffer _Curre
 layout(set = S_RESTIR, binding = ePrevIndirectReservoirs, scalar) buffer _PrevIndirectResv { IndirectReservoir prevIndirectResv[]; };
 layout(set = S_RESTIR, binding = eCurrentIndirectReservoirs, scalar) buffer _CurrentIndirectResv { IndirectReservoir currentIndirectResv[]; };
 
-layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReserviors[]; };
-layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReserviors[]; };
-layout(set = S_RESTIR, binding = ePrevReservoirs, scalar)   buffer _PrevReservoirs { Reservoir prevReserviors[]; };
-layout(set = S_RESTIR, binding = eDebugExtra, scalar)  buffer _DebugReservoirs{ Reservoir debugReserviors[]; };
+layout(set = S_RESTIR, binding = eInitialReservoirs, scalar)   buffer _InitialReservoirs { Reservoir initialReservoirs[]; };
+layout(set = S_RESTIR, binding = eCurrentReservoirs, scalar)   buffer _CurrentReservoirs { Reservoir currentReservoirs[]; };
+layout(set = S_RESTIR, binding = ePrevReservoirs, scalar)   buffer _PrevReservoirs { Reservoir prevReservoirs[]; };
+layout(set = S_RESTIR, binding = eDebugExtra, scalar)  buffer _DebugReservoirs{ Reservoir debugReservoirs[]; };
 layout(set = S_RESTIR, binding = eAppend, scalar)   buffer _AppendBuffer { HashAppendData appendBuffer[]; };
 layout(set = S_RESTIR, binding = eFinal, scalar)   buffer _FinalSamples { FinalSample finalSamples[]; };
 layout(set = S_RESTIR, binding = eCell, scalar)   buffer _CellStorageBuffer { uint cellStorageBuffer[]; };

@@ -93,8 +93,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 int main(int argc, char** argv)
 {
   InputParser parser(argc, argv);
-  //std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
-  std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
+  std::string sceneFile   = parser.getString("-f", "sponza/Sponza.gltf");
+  // std::string sceneFile = parser.getString("-f", "robot_toon/robot-toon.gltf");
   // std::string sceneFile = parser.getString("-f", "subway_train_interior/scene.gltf");
   std::string hdrFilename = parser.getString("-e", "daytime.hdr");
 

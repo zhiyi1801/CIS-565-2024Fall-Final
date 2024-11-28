@@ -219,4 +219,17 @@ float Luminance(vec3 rgb)
     return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
 }
 
+//
+//--------------------------------------------------------------------------------------------------
+//
+//
+vec3 randomColor(vec3 _in) {
+    // Generate a pseudo-random color based on the input vector
+    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
+    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
+
+    return vec3(r, g, b);
+}
+
 #endif  // RAYCOMMON_GLSL

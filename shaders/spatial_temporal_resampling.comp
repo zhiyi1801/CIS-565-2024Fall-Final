@@ -32,6 +32,7 @@ layout(push_constant) uniform _RtxState
 #include "random.glsl"
 #include "compress.glsl"
 #include "pbr_metallicworkflow.glsl"
+#include "HashBuildStructure.glsl"
 
 PtPayload prd;
 ShadowHitPayload shadow_payload;
@@ -50,12 +51,16 @@ ivec2 indSize()
 	return rtxState.size;
 }
 
+//---------------------------------------------
+//
 // just return the luminance as the weight function(unnormalized target function)
 float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos)
 {
 	return Luminance(Li);
 }
 
+//---------------------------------------------
+//
 // return BSDF * Li
 float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos, ReconnectionData rcData)
 {
@@ -92,6 +97,8 @@ float EvalTargetPdf(vec3 Li, vec3 vPos, vec3 sPos, ReconnectionData rcData)
 	return Luminance(radiance);
 }
 
+//---------------------------------------------
+//
 // Merge two reservoirs(merge r2 into r1 r1 <- r2)
 bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2TargetPdf, inout float weightS)
 {
@@ -119,13 +126,50 @@ bool MergeReservoir(inout uint rseed, inout Reservoir r1, Reservoir r2, float r2
 	return isUpdate;
 }
 
+//---------------------------------------------
+//
 void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 {
 	float weight = targetPdf * resv.M;
 	resv.bigW = weight > 0 ? weightSum / weight : 0;
 }
 
-//-----------------------
+//--------------------------------------------------------------------------------------------------
+//
+int FindCell(vec3 pos, vec3 norm, float cellSize, GIParameter params)
+{
+  // Discretize the position
+  uvec3 cellP = uvec3((pos - params.bboxMin) / cellSize);
+
+  // Quantize the normal
+  uint normprint = BinaryNorm(norm);
+
+  // Get the cell index
+  uint cellIndex = pcg32(normprint + pcg32( uint(cellSize + pcg32(cellP.z + pcg32(cellP.y + pcg32(cellP.x)))) )) % cellSizeNoHash;
+
+  // Second hash index 
+  uint checkSum = max(jenkinsHash(normprint + jenkinsHash( uint(cellSize+ jenkinsHash(cellP.z + jenkinsHash(cellP.y + jenkinsHash(cellP.x)))) )), 1);
+
+  for(uint i = 0; i < 32; ++i)
+  {
+    // Linear probing stride 32
+    uint idx = cellIndex * 32 + i;
+
+    // Previous checksum 
+    uint checkSumPre;
+
+    // Check if the checksum is the same
+    // if the same, return the idx
+    if(checkSum == checkSumBuffer[idx])
+    {
+      return int(idx);
+    }
+  }
+
+  return -1;
+}
+
+//------------------------------------------------
 //
 // void StResample(ivec2 imageCoords)
 // {
@@ -144,7 +188,7 @@ void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 // 	}
 	
 // 	// Get the initial sample of the pixel
-// 	Reservoir initialResvSample = initialReserviors[idx];
+// 	Reservoir initialResvSample = initialReservoirs[idx];
 
 // 	// If the initial reservoir hit environment
 // 	if(initialResvSample.rcEnv == 1)
@@ -162,7 +206,7 @@ void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 // 	bool isPreValid = inBound(motionIdx, rtxState.size);
 
 // 	// Get the previous sample
-// 	Reservoir temporalPrevReservoir = prevReserviors[preIdx];
+// 	Reservoir temporalPrevReservoir = prevReservoirs[preIdx];
 
 // 	// If the temporal sample is valid, check the geometry
 // 	if(isPreValid)
@@ -218,7 +262,7 @@ void ComputeFinalWeight(inout Reservoir resv, float targetPdf, float weightSum)
 //     // temporalPrevReservoir.vNorm = initialResvSample.vNorm;
 
 // 	// Write the temporal reservoir to the current buffer
-// 	currentReserviors[preIdx] = temporalPrevReservoir;
+// 	currentReservoirs[idx] = temporalPrevReservoir;
 
 // 	// Debug
 // 	// imageStore(resultImage, imageCoords, vec4(float(isPreValid)));
@@ -243,7 +287,7 @@ bool findTemporalNeighbor(
     uint matHash;
     
 	// loadLastGeometryInfo(lastCoord, pnorm, pdepth, matHash);
-	Reservoir tempResv = prevReserviors[lastCoord.y * indSize().x + lastCoord.x];
+	Reservoir tempResv = prevReservoirs[lastCoord.y * indSize().x + lastCoord.x];
 	pnorm = tempResv.giSample.nv;
 	pdepth = length(tempResv.giSample.xv - sceneCamera.lastPosition);
 	matHash = tempResv.giSample.vMatId;
@@ -326,7 +370,7 @@ void StResample(ivec2 imageCoords)
 	// Get 1D index
 	idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
-	Reservoir initialRev = initialReserviors[idx];
+	Reservoir initialRev = initialReservoirs[idx];
 	Reservoir resv;
 	resvReset(resv);
 
@@ -385,11 +429,99 @@ void StResample(ivec2 imageCoords)
     resvClamp(resv, rtxState.reservoirClamp * 2);
 
 	// Write the temporal reservoir to the current buffer
-	currentReserviors[idx] = resv;
+	currentReservoirs[idx] = resv;
 
 	//-------------------------------
 	// Spatial Reuse
-	Reservoir spatialResv = prevReserviors[motionIdx.y * indSize().x + motionIdx.x];
+	Reservoir spatialResv = currentReservoirs[idx];
+	spatialResv.giSample.xv = initialRev.giSample.xv;
+	spatialResv.giSample.nv = initialRev.giSample.nv;
+
+	// Set GI parameters
+	GIParameter params;
+	params.frameDim = rtxState.size;
+	params.frameCount = rtxState.frame;
+	params.bboxMin = rtxState.sceneBBMin;
+	params.minCellSize = rtxState.minCellSize;
+	params.fov = rtxState.cameraFov;
+
+	// Compute Cell Size
+	float cellSize = CalculateCellSize(spatialResv.giSample.xv, rtxState.cameraPos, params);
+
+	// Find the cell
+	int cellIdx = FindCell(spatialResv.giSample.xv, spatialResv.giSample.nv, cellSize, params);
+
+	// Debug
+	// float cellIdxF = float(cellIdx % 256);
+	// imageStore(debugImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
+	
+	// If the cell is not found, write the reservoir to the current buffer
+	if(cellIdx == -1)
+	{
+		uint spatialIdx = idx + rtxState.size.x * rtxState.size.y;
+		currentReservoirs[spatialIdx] = spatialResv;
+	}
+
+	// Get the cell base index and number of elements in the cell
+	uint cellBaseIdx = indexBuffer[cellIdx];
+	uint sampleCount = cellCounterBuffer[cellIdx];
+
+	resvClamp(spatialResv, rtxState.reservoirClamp * 2);
+
+	// TODO: Should be a variable
+	uint maxSpatialIteration = 3u;
+
+	// Get the increment and offset of sapatial reuse
+	uint increment = (sampleCount + maxSpatialIteration - 1) / maxSpatialIteration;
+	uint offset = uint(rand(prd.seed)  * (increment - 1)) % sampleCount;
+
+	vec3 positionList[10];
+	vec3 normalList[10];
+	uint MList[10];
+	uint nReuse = 0;
+	positionList[nReuse] = spatialResv.giSample.xv;
+	normalList[nReuse] = spatialResv.giSample.nv;
+	MList[nReuse] = spatialResv.M;
+	nReuse++;
+
+	float wSumS = spatialResv.M * max(0.f, spatialResv.bigW) * spatialResv.giSample.pHat;
+
+	uint reuseIdx = 0;
+	uint count = 0;
+
+	for(uint i = 0; i < sampleCount; i += increment)
+	{
+		count++;
+
+		// Get the sample reservoir index
+		uint neighborPixelIndex = cellStorageBuffer[cellBaseIdx + (offset + i) % sampleCount];
+		Reservoir neighborResv = currentReservoirs[neighborPixelIndex];
+		if(resvInvalid(neighborResv) || dot(spatialResv.giSample.nv, neighborResv.giSample.nv) < 0.5)
+		{
+			continue;
+		}
+
+		float targetPdf = neighborResv.giSample.pHat;
+
+		vec3 offsetB = neighborResv.giSample.xs - neighborResv.giSample.xv;
+        vec3 offsetA = neighborResv.giSample.xs - spatialResv.giSample.xv;
+
+		// Discard back-face.
+        if (dot(spatialResv.giSample.nv, offsetA) <= 0.f)
+        {
+            targetPdf = 0.f;
+        }
+
+		float RB2 = dot(offsetB, offsetB);
+        float RA2 = dot(offsetA, offsetA);
+		offsetB = normalize(offsetB);
+        offsetA = normalize(offsetA);
+
+		float cosA = dot(spatialResv.giSample.vNorm, offsetA);
+        float cosB = dot(neighborResv.giSample.vNorm, offsetB);
+        float cosPhiA = -dot(offsetA, neighborResv.giSample.sNorm);
+        float cosPhiB = -dot(offsetB, neighborResv.giSample.sNorm);
+	}
 }
 
 //

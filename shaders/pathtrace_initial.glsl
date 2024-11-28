@@ -627,7 +627,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
             // TODO
             // Set roughness threshold, now fixed, should be a variable 
-            float kRoughnessThreshold = 0.2f;
+            float kRoughnessThreshold = 0.f;
 
             // Flag shows if rough enough to reconnect
             bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
@@ -834,15 +834,6 @@ void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathStat
         throughput /= rrPcont;
 #endif
     }
-}
-
-vec3 randomColor(vec3 _in) {
-    // Generate a pseudo-random color based on the input vector
-    float r = fract(sin(dot(_in, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-    float g = fract(sin(dot(_in, vec3(93.989, 67.345, 24.123))) * 43758.5453);
-    float b = fract(sin(dot(_in, vec3(29.358, 48.321, 99.123))) * 43758.5453);
-
-    return vec3(r, g, b);
 }
 
 //-----------------------------------------------------------------------
