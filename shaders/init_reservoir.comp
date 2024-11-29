@@ -232,7 +232,7 @@ void main()
   params.bboxMin = rtxState.sceneBBMin;
   params.minCellSize = rtxState.minCellSize;
 
-  // degree to radian
+  // angular value to radian
   params.fov = rtxState.cameraFov * (M_PI / 180.0f);
 
   // Set initial reservoir
