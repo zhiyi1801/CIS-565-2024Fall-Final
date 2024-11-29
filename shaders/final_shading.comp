@@ -100,11 +100,6 @@ void main()
 	vec3 bsdfCos = metallicWorkflowBSDF(state, prevNormal, data.preRcVertexWo, fSample.dir) * absDot(prevNormal, fSample.dir);
 	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
 	color = clampRadiance(color);
-	//if(color.x > 10 || color.y > 10 || color.z > 10)
-	//{
-		//color = vec3(0.0f);
-	//}
-	// imageStore(resultImage, imageCoords, vec4(color, 1.0f));
     color = HDRToLDR(color);
 
 	// Update the result image

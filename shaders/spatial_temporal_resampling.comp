@@ -447,7 +447,9 @@ void StResample(ivec2 imageCoords)
 	params.frameCount = rtxState.frame;
 	params.bboxMin = rtxState.sceneBBMin;
 	params.minCellSize = rtxState.minCellSize;
-	params.fov = rtxState.cameraFov;
+
+	// angular value to radian
+	params.fov = rtxState.cameraFov * (M_PI / 180.0f);
 
 	// Compute Cell Size
 	float cellSize = CalculateCellSize(spatialResv.giSample.xv, rtxState.cameraPos, params);
@@ -457,7 +459,7 @@ void StResample(ivec2 imageCoords)
 
 	// Debug
 	// float cellIdxF = float(cellIdx % 256);
-	// imageStore(debugImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
+	// imageStore(resultImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));
 	
 	// If the cell is not found, write the reservoir to the current buffer
 	if(cellIdx == -1)
@@ -467,7 +469,7 @@ void StResample(ivec2 imageCoords)
 	}
 
 	// Get the cell base index and number of elements in the cell
-	uint cellBaseIdx = indexBuffer[cellIdx];
+	uint cellBaseIdx = (cellIdx == 0) ? 0 : indexBuffer[cellIdx];
 	uint sampleCount = cellCounterBuffer[cellIdx];
 
 	resvClamp(spatialResv, rtxState.reservoirClamp * 2);
@@ -500,7 +502,8 @@ void StResample(ivec2 imageCoords)
 		// Get the sample reservoir index
 		uint neighborPixelIndex = cellStorageBuffer[cellBaseIdx + (offset + i) % sampleCount];
 		Reservoir neighborResv = currentReservoirs[neighborPixelIndex];
-		if(resvInvalid(neighborResv) || dot(spatialResv.giSample.nv, neighborResv.giSample.nv) < 0.5)
+		if(resvInvalid(neighborResv) || 
+		dot(spatialResv.giSample.nv, neighborResv.giSample.nv) < 0.5)
 		{
 			continue;
 		}
@@ -566,7 +569,7 @@ void StResample(ivec2 imageCoords)
 		MList[nReuse] = neighborResv.M;
 		nReuse++;
 	}
-	imageStore(resultImage, imageCoords, vec4(vec3(count), 1.0f));
+	// imageStore(resultImage, imageCoords, vec4(vec3(reuseIdx), 1.0f));
 
 	float z = 0;
 	float chosenWeight = 0.f;

@@ -18,7 +18,7 @@ bool IsPdfInvalid(float p) {
 bool Occlusion(Ray ray, State state, float dist) {
     return AnyHit(ray, dist - abs(ray.origin.x - state.position.x) -
         abs(ray.origin.y - state.position.y) -
-        abs(ray.origin.z - state.position.z));
+        abs(ray.origin.z - state.position.z) - 1);
 }
 
 vec3 BSDF(State state, vec3 V, vec3 N, vec3 L) {
@@ -627,7 +627,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 
             // TODO
             // Set roughness threshold, now fixed, should be a variable 
-            float kRoughnessThreshold = 0.f;
+            float kRoughnessThreshold = roughnessThreshold;
 
             // Flag shows if rough enough to reconnect
             bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
