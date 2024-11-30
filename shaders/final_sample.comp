@@ -53,8 +53,8 @@ void main()
 	uint idx = rtxState.size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
 
 	// Get the current sample reservoir
-	// Reservoir r = currentReservoirs[idx];
-	Reservoir r = currentReservoirs[idx + rtxState.size.x * rtxState.size.y];
+	Reservoir r = currentReservoirs[idx];
+	// Reservoir r = currentReservoirs[idx + rtxState.size.x * rtxState.size.y];
 
 	// Write the final sample
 	FinalSample s;

@@ -58,7 +58,7 @@ const uint cellSizeNoHash = 1000;
 const int RayTraceBlockSizeX = 8;
 const int RayTraceBlockSizeY = 8;
 
-const float roughnessThreshold = 0.1f;
+const float roughnessThreshold = 0.2f;
 
 // Sets
 START_ENUM(SetBindings)
@@ -552,7 +552,8 @@ struct uintStruct
 };
 
 // ReSTIR DI
-struct LightSample {
+struct LightSample 
+{
 	vec3 Li;
 	float padding;
 
@@ -560,17 +561,25 @@ struct LightSample {
 	float dist;
 };
 
-struct DirectReservoir {
+START_ENUM(DIType)
+	DI_Invalid = 0,
+	DI_Rough = 1,
+	DI_Smooth = 2
+END_ENUM();
+
+struct DirectReservoir 
+{
 	LightSample lightSample;
 
 	uint M;
 	float weight;
-	uint padding1;
-	uint padding2;
+	uint DIResvType;
+	uint pad1;
 };
 
 // ReSTIR Indirect light
-struct GISample {
+struct GISample 
+{
 	vec3 L;
 	float pHat;
 
@@ -590,7 +599,8 @@ struct GISample {
 	uint rcEnv;
 };
 
-struct IndirectReservoir {
+struct IndirectReservoir 
+{
 	GISample giSample;
 
 	uint	 M;

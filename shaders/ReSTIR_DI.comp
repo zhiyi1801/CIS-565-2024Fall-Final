@@ -38,7 +38,7 @@ layout(local_size_x = RayTraceBlockSizeX, local_size_y = RayTraceBlockSizeY) in;
 
 // Find the Temporal reuse sample
 bool findTemporalNeighbor(
-    vec3 norm, float depth, float reprojDepth, uint matId, ivec2 prevCoord, out DirectReservoir resv)
+    DirectReservoir inResv, vec3 norm, float depth, float reprojDepth, uint matId, ivec2 prevCoord, out DirectReservoir outResv)
 {
     vec3 pnorm; 
     float pdepth; 
@@ -54,10 +54,11 @@ bool findTemporalNeighbor(
 
     if (hash8bit(matId) == matHash)
     {
+        DirectReservoir tempResv = prevDirectResv[prevCoord.y * rtxState.size.x + prevCoord.x];
         // Check if the sample has similar geom properties
-        if (dot(norm, pnorm) > 0.9 && reprojDepth < pdepth * 1.05) 
+        if (dot(norm, pnorm) > 0.9 && reprojDepth < pdepth * 1.05 && inResv.DIResvType == tempResv.DIResvType) 
         {
-            resv = prevDirectResv[prevCoord.y * rtxState.size.x + prevCoord.x];
+            outResv = tempResv;
             return true;
         }
     }
@@ -106,7 +107,7 @@ void resvUpdate(inout DirectReservoir resv, LightSample newSample, float newWeig
 {
     resv.weight += newWeight;
     resv.M += 1;
-    if (r * resv.weight < newWeight) 
+    if (r * resv.weight <= newWeight) 
     {
         resv.lightSample = newSample;
     }
@@ -190,44 +191,121 @@ vec3 RayTraceRestirDI(Ray r)
     DirectReservoir resv;
     resvReset(resv);
 
-    for (int i = 0; i < rtxState.RISSampleNum; ++i)
+    // Check if the surface is rough
+    bool IsRough = state.mat.roughness > 0.1 || state.mat.metallic < 0.8f;
+    resv.DIResvType = IsRough ? DI_Rough : DI_Smooth;
+
+    // Cache prd & random seed
+    PtPayload cachedPrd = prd;
+    uint   cachedPrdSeed = prd.seed;
+    if(resv.DIResvType == DI_Rough)
     {
-        // Sample direct light
+        for (int i = 0; i < rtxState.RISSampleNum; ++i)
+        {
+            // Sample direct light
+            LightSample lsample;
+            float p = SampleDirectLightNoVisibility(state.position, lsample);
+
+            // Compute target weight
+            vec3 pHat = lsample.Li * Eval(state, wo, state.ffnormal, lsample.wi, dummyPdf) * abs(dot(state.ffnormal, lsample.wi));
+            float weight = Luminance(pHat / p);
+
+            // Invalid sample
+            if (IsPdfInvalid(p) || isnan(weight)) 
+            {
+                weight = 0.0;
+            }
+
+            // Update the reservoir
+            resvUpdate(resv, lsample, weight, rand(prd.seed));
+        }
+
+        LightSample lsample = resv.lightSample;
+
+        // Generate the shadow ray to do occlusion test
+        Ray shadowRay;
+        shadowRay.origin = OffsetRay(state.position, state.ffnormal);
+        shadowRay.direction = lsample.wi;
+
+        if (Occlusion(shadowRay, state, lsample.dist)) 
+        {
+            resv.weight = 0.0;
+        }
+
+        // Cache prd seed
+        cachedPrdSeed = prd.seed;
+    }
+    else if(resv.DIResvType == DI_Smooth)
+    {
+        // Sample BSDF
+        vec3 sampleWi;
+        float samplePdf;
+        vec3 sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
+        // Direct light sampler
         LightSample lsample;
-        float p = SampleDirectLightNoVisibility(state.position, lsample);
+        lsample.dist = prd.hitT;
+        lsample.wi = sampleWi;
+        lsample.Li = vec3(0.0f);
+        float p = samplePdf;
 
-        // Compute target weight
-        vec3 pHat = lsample.Li * Eval(state, wo, state.ffnormal, lsample.wi, dummyPdf) * abs(dot(state.ffnormal, lsample.wi));
-        float weight = Luminance(pHat / p);
-
-        // Invalid sample
-        if (IsPdfInvalid(p) || isnan(weight)) 
+        float weight;
+        if(IsPdfInvalid(samplePdf))
         {
             weight = 0.0;
         }
+        else if (!IsPdfInvalid(samplePdf)) 
+        {
+            // Generate next ray
+            Ray tempRay;
+            tempRay.origin = OffsetRay(state.position, state.ffnormal);
+            tempRay.direction = sampleWi;
 
+            // Compute the Intersection
+            ClosestHit(tempRay);
+
+            State tempState;
+            tempState = GetState(prd, tempRay.direction);
+            GetMaterials(tempState, tempRay);
+		    tempState.matID = int(hash8bit(tempState.matID));
+
+            // hit ENV
+            float dummyPdf;
+            if(prd.hitT >= INFINITY * 0.9f)
+            {
+                lsample.Li = EnvRadiance(sampleWi);
+            }
+            if(tempState.isEmitter) 
+			{
+				lsample.Li = LightEval(tempState, prd.hitT, sampleWi, dummyPdf);
+			}
+
+            // Compute target weight
+            vec3 pHat = lsample.Li * Eval(state, wo, state.ffnormal, lsample.wi, dummyPdf) * abs(dot(state.ffnormal, lsample.wi));
+            weight = Luminance(pHat / p);
+
+            // Invalid sample
+            if (IsPdfInvalid(p) || isnan(weight)) 
+            {
+                weight = 0.0;
+            }
+        }
         // Update the reservoir
         resvUpdate(resv, lsample, weight, rand(prd.seed));
+
+        // Cache prd seed
+        cachedPrdSeed = prd.seed;
     }
 
-    LightSample lsample = resv.lightSample;
-
-    // Generate the shadow ray to do occlusion test
-    Ray shadowRay;
-    shadowRay.origin = OffsetRay(state.position, state.ffnormal);
-    shadowRay.direction = lsample.wi;
-
-    if (Occlusion(shadowRay, state, lsample.dist)) 
-    {
-        resv.weight = 0.0;
-    }
+    // Restore prd
+    prd = cachedPrd;
+    prd.seed = cachedPrdSeed;
 
     // Temporal reuse
     float reprojDepth = length(sceneCamera.lastPosition - state.position);
     DirectReservoir temporalSampleResv;
 
     // Try to find a temporal sample
-    if (findTemporalNeighbor(state.ffnormal, prd.hitT, reprojDepth, state.matID, motionIdx, temporalSampleResv))
+    if (IsRough && findTemporalNeighbor(resv, state.ffnormal, prd.hitT, reprojDepth, state.matID, motionIdx, temporalSampleResv))
     {
         if (!resvInvalid(temporalSampleResv))
         {
@@ -242,7 +320,7 @@ vec3 RayTraceRestirDI(Ray r)
     resvClamp(tempResv, rtxState.RISSampleNum * rtxState.reservoirClamp);
     saveNewReservoir(tempResv);
 
-    lsample = resv.lightSample;
+    LightSample lsample = resv.lightSample;
     if (!resvInvalid(resv))
     {
         // p_hat = Luminance(Li * BSDF) * cos, cos is removed as a scalar in both numerator and denominator
@@ -256,6 +334,7 @@ vec3 RayTraceRestirDI(Ray r)
     }
     vec3 res = clampRadiance(state.mat.emission + direct);
     res = HDRToLDR(res);
+    // imageStore(thisDirectResultImage, imageCoords, vec4(direct, 1.f));
     return res;
 }
 
