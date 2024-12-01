@@ -149,6 +149,7 @@ bool SampleGUI::guiRayTracing()
   changed |= GuiH::Selection("ReSTIR Debug Mode", "Display unique values of material", &rtxState.restirDebugMode, nullptr, Normal,
       {
           "No Debug",
+		  "Path Tracing",
           "Direct Light",
           "Hash Grid"
       });

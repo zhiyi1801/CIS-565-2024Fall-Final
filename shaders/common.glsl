@@ -216,8 +216,13 @@ vec3 colorWheel(float x)
 
 float Luminance(vec3 rgb)
 {
-    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
+    return 0.3126f * rgb.x + 0.3152f * rgb.y + 0.3722f * rgb.z;
 }
+
+//float Luminance(vec3 rgb)
+//{
+//    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
+//}
 
 //
 //--------------------------------------------------------------------------------------------------

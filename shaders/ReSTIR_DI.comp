@@ -305,7 +305,7 @@ vec3 RayTraceRestirDI(Ray r)
     DirectReservoir temporalSampleResv;
 
     // Try to find a temporal sample
-    if (IsRough && findTemporalNeighbor(resv, state.ffnormal, prd.hitT, reprojDepth, state.matID, motionIdx, temporalSampleResv))
+    if ((IsRough || motionIdx == imageCoords) && findTemporalNeighbor(resv, state.ffnormal, prd.hitT, reprojDepth, state.matID, motionIdx, temporalSampleResv))
     {
         if (!resvInvalid(temporalSampleResv))
         {

@@ -58,7 +58,7 @@ const uint cellSizeNoHash = 1000;
 const int RayTraceBlockSizeX = 8;
 const int RayTraceBlockSizeY = 8;
 
-const float roughnessThreshold = 0.2f;
+const float roughnessThreshold = 0.05f;
 
 // Sets
 START_ENUM(SetBindings)
@@ -150,8 +150,9 @@ END_ENUM();
 
 START_ENUM(RestirDebugMode)
 	eReSTIR = 0,   //
-	eDirectLight = 1,   //
-	eHashGrid = 2   //
+	ePathTracing = 1,
+	eDirectLight = 2,   //
+	eHashGrid = 3   //
 END_ENUM();
 
 // Camera of the scene
