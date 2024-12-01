@@ -244,9 +244,11 @@ void main()
   // For Debug
   float cellSize = tan(120 * params.fov * max(1.0 / params.frameDim.y, params.frameDim.y / float((params.frameDim.x * params.frameDim.x))));
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
-  imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
-  imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), cellSize), 1.0f));
-  float cellIdxF = float(data.cellIdx % 256);
+  // imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
+  // imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), cellSize), 1.0f));
+
+  // Cell Visualization
+  float cellIdxF = float( (data.cellIdx / 32) % 256);
   if(rtxState.restirDebugMode == eHashGrid)
   {
     imageStore(resultImage, imageCoords, vec4(randomColor(vec3(cellIdxF, cellIdxF, cellIdxF)), 1.0f));

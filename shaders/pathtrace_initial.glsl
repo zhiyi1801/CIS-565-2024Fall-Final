@@ -692,6 +692,19 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 break;                // paths with low throughput that won't contribute
             }
             throughput /= rrPcont;  // boost the energy of the non-terminated paths
+
+            // If the vertex is in the prefix path
+            if (pathState.currentVertexIndex + 1 < pathState.rcVertexLength)
+            {
+                // Update prefix throughput
+                pathState.prefixThp /= rrPcont;
+            }
+            // If the vertex is in the reconnect path
+            else
+            {
+                // Accumulate reconnect throughput
+                pathState.thp /= rrPcont;
+            }
 #endif
         }
     }
@@ -923,6 +936,6 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     }
 
 
-    return radiance;
+    // return radiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
 }
