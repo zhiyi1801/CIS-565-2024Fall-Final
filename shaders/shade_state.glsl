@@ -216,6 +216,9 @@ State GetState(PtPayload hstate, vec3 rayDir)
     state.bitangent = world_binormal;
     state.matID = matIndex;
     state.area = length(cross(wpos1 - wpos0, wpos2 - wpos0)) * 0.5;
+    state.isEmitter = false;
+    state.specularBounce = false;
+    state.isSubsurface = false;
 
     return state;
 }

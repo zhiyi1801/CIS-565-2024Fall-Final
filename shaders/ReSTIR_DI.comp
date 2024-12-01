@@ -334,7 +334,6 @@ vec3 RayTraceRestirDI(Ray r)
     }
     vec3 res = clampRadiance(state.mat.emission + direct);
     res = HDRToLDR(res);
-    // imageStore(thisDirectResultImage, imageCoords, vec4(direct, 1.f));
     return res;
 }
 

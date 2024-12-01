@@ -78,13 +78,13 @@ vec3 LightEval(State state, float dist, vec3 dir, out float pdf) {
     vec3 emission = mat.emissiveFactor;
 
     pdf = luminance(emission) * rtxState.lightLuminIntegInv * lightProb;
-    pdf *= dist * dist / absDot(state.ffnormal, dir);
+    pdf *= dist * dist / (absDot(state.ffnormal, dir) * state.area);
 
     if (mat.emissiveTexture > -1) {
         vec2 uv = state.texCoord;
         emission *= SRGBtoLINEAR(textureLod(texturesMap[nonuniformEXT(mat.emissiveTexture)], uv, 0)).rgb;
     }
-    return emission / state.area;
+    return emission;
 }
 
 vec2 SampleTriangleUniform(vec3 v0, vec3 v1, vec3 v2) {
@@ -434,16 +434,7 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             //// Debug the world position
             //return sstate.position;
 
-            state.position = sstate.position;
-            state.normal = sstate.normal;
-            state.tangent = sstate.tangent_u[0];
-            state.bitangent = sstate.tangent_v[0];
-            state.texCoord = sstate.text_coords[0];
-            state.matID = sstate.matIndex;
-            state.isEmitter = false;
-            state.specularBounce = false;
-            state.isSubsurface = false;
-            state.ffnormal = dot(state.normal, r.direction) <= 0.0 ? state.normal : -state.normal;
+            state = GetState(prd, r.direction);
 
             // Filling material structures
             GetMaterialsAndTextures(state, r);
@@ -533,7 +524,6 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 vec3 thp = pathState.thp;
                 pathState.rcVertexRadiance += thp * Li * MIS_weight;
             }
-
             radiance += Li * throughput * MIS_weight;
             break;
         }
@@ -806,6 +796,6 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     }
 
 
-    // return radiance;
+    return radiance;
     return pathState.prefixPathRadiance + pathState.rcVertexRadiance * pathState.cacheBsdfCosWeight * pathState.prefixThp;
 }
