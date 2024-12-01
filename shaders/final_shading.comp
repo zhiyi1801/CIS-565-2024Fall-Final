@@ -98,9 +98,13 @@ void main()
 
 	// Compute BSDF*cos
 	vec3 bsdfCos = metallicWorkflowBSDF(state, prevNormal, data.preRcVertexWo, fSample.dir) * absDot(prevNormal, fSample.dir);
+
 	color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
+	// color = (data.pathPreThp * bsdfCos * fSample.Li);
 	color = clampRadiance(color);
     color = HDRToLDR(color);
+
+	vec3 directColor = imageLoad(thisDirectResultImage, imageCoords).xyz;
 
 	// Update the result image
 	if(rtxState.restirDebugMode == eReSTIR)

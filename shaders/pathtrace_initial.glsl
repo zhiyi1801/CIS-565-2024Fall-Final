@@ -84,7 +84,7 @@ vec3 LightEval(State state, float dist, vec3 dir, out float pdf) {
         vec2 uv = state.texCoord;
         emission *= SRGBtoLINEAR(textureLod(texturesMap[nonuniformEXT(mat.emissiveTexture)], uv, 0)).rgb;
     }
-    return emission/* / area*/;
+    return emission / state.area;
 }
 
 vec2 SampleTriangleUniform(vec3 v0, vec3 v1, vec3 v2) {
@@ -717,136 +717,6 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
 float pHatIndirect(vec3 L)
 {
     return Luminance(L);
-}
-
-//-----------------------------------------------------------------------
-//-----------------------------------------------------------------------
-void PathTrace_initial_Indirect(State state, Ray ray, inout PathPayLoad pathState, ivec2 imageCoords)
-{
-    // state is the first hit point's state
-    pathState.preRcVertexHitInfo = encodeGeometryInfo(state, 0);
-    // Define some basic variables
-    vec3 throughput = vec3(/* multiBounce ? 4.0 :*/ 1.0);
-    pathState.preRcVertexWo = -ray.direction;
-
-    // Modulate for denoise
-    // state.mat.albedo = vec3(1.0);
-
-    for (int depth = 1; depth <= rtxState.maxDepth; depth++)
-    {
-        vec3 wo = -ray.direction;
-
-        // MIS
-        if (depth > 1)
-        {
-            vec3 Li, wi;
-            float lightPdf = SampleDirectLight(state, Li, wi);
-
-            if (!IsPdfInvalid(lightPdf))
-            {
-                float BSDFPdf = Pdf(state, wo, state.ffnormal, wi);
-                float weight = MIS(lightPdf, BSDFPdf);
-                pathState.rcVertexRadiance += Li * BSDF(state, wo, state.ffnormal, wi) * absDot(state.ffnormal, wi) * throughput / lightPdf * weight;
-            }
-        }
-
-        // Sample next ray
-        vec3 sampleWi;
-        float samplePdf;
-        vec3 sampleBSDF = Sample(state, wo, state.ffnormal, sampleWi, samplePdf, prd.seed);
-
-        if (depth == 1)
-        {
-            pathState.pdf = samplePdf;
-            pathState.preRcVertexPos = state.position;
-            pathState.preRcVertexNorm = state.ffnormal;
-            pathState.preRcMatId = int(state.matID);
-        }
-
-        if (IsPdfInvalid(samplePdf))
-        {
-            break;
-        }
-
-        if (depth > 1)
-        {
-            // Accumulate throughputs
-            throughput *= sampleBSDF / samplePdf * absDot(state.ffnormal, sampleWi);
-        }
-        else
-        {
-            // Record the first hit
-        }
-
-        // Generate next ray
-        ray.origin = OffsetRay(state.position, state.ffnormal);
-        ray.direction = sampleWi;
-
-        ClosestHit(ray);
-
-        // Hit Env
-        if (prd.hitT >= INFINITY)
-        {
-            if (depth > 1)
-            {
-                float lightPdf;
-                vec3 Li = EnvEval(sampleWi, lightPdf);
-                float weight = MIS(samplePdf, lightPdf);
-                pathState.rcVertexRadiance += Li * throughput * weight;
-            }
-            else
-            {
-                // Hack here. To let samples from the infinity light able to be temporally reused
-                // giSample.matInfo = uvec2(0xFFFFFFFF, 0xFFFFFFFF);
-
-                // Update the Reconnect point
-                pathState.rcEnvDir = ray.direction;
-                pathState.rcEnv = 1;
-                pathState.rcVertexPos = state.position + sampleWi * INFINITY * 0.8;
-                pathState.rcVertexNorm = -sampleWi;
-            }
-            break;
-        }
-
-        state = GetState(prd, ray.direction);
-        GetMaterials(state, ray);
-		state.matID = int(hash8bit(state.matID));
-
-        // Hit Light
-        if (state.isEmitter)
-        {
-            if (depth > 1)
-            {
-
-                float lightPdf;
-                vec3 Li = LightEval(state, prd.hitT, sampleWi, lightPdf);
-                float weight = MIS(samplePdf, lightPdf);
-                pathState.rcVertexRadiance += Li * throughput * weight;
-            }
-            else
-            {
-                // Record the Reconnect point
-                pathState.rcVertexPos = state.position;
-                pathState.rcVertexNorm = state.ffnormal;
-            }
-            break;
-        }
-
-        if (depth == 1)
-        {
-            // Record the first hit
-            pathState.rcVertexPos = state.position;
-            pathState.rcVertexNorm = state.ffnormal;
-        }
-
-#ifndef RR
-        float rrPcont = (1 >= RR_DEPTH) ? min(max(throughput.x, max(throughput.y, throughput.z)) * state.eta * state.eta + 0.001, 0.95) : 1.0;
-        if (rand(prd.seed) >= rrPcont) {
-            break;
-        }
-        throughput /= rrPcont;
-#endif
-    }
 }
 
 //-----------------------------------------------------------------------
