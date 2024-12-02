@@ -34,9 +34,7 @@ cmake ../
 
 - We recommend to use Visual Studio 2022 to develop this project.
 
-### Usage
-
-**Controls**
+### Controls
 
 | Action | Description |
 |--------|-------------|
@@ -50,15 +48,32 @@ cmake ../
 |`Mouse wheel + Shift`| Zoom in/out (FOV)
 |`Space`| Set interest point on the surface under the mouse cursor.
 |`F10`| Toggle UI pane.
+|Drag and drop glTF files (`.gltf` or `.glb`) into viewer|Change glTF model
+|Drag and drop HDR files (`.hdr`) into viewer|Change HDR lighting
 
 
-**Change glTF model**
+## Performance Analysis
+To be finished
 
-* Drag and drop glTF files (`.gltf` or `.glb`) into viewer
+## Timeline
 
-**Change HDR lighting**
+- [Pitch](imgs/Pitch.pdf) 
+- [Milestone 1(Nov 13)](imgs/Milestone1.pdf)
+  - Basic Vulkan Ray-Tracing Pipeline Setup in Vulkan
+  - Light source importance sampling for both environment map and mesh lights
+  - Hash Grid Data Structure Setup
+  - Research on RIS(Resampled Importance Sampling), Reservoir-based sample Algorithm, and Denoise techs
 
-* Drag and drop HDR files (`.hdr`) into viewer
+- [Milestone 2(Nov 25)](imgs/Milestone2.pdf)
+  - Completed hash grid Construction & Visualization
+  - Completed World Space ReSTIR Direct illumination
+  - Completed basic Open Image Denoiser integration
+
+- [Milestone 3(Dec 02)](imgs/Milestone3.pdf)
+  - Completed basic Spatial Reuse
+  - Fixed bugs for Temporal Reuse 
+  - Fixed several bugs for DI
+  - Project refactoring and code optimization 
 
 
 ## References
