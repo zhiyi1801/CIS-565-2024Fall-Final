@@ -146,13 +146,16 @@ bool SampleGUI::guiRayTracing()
 
   changed |= GuiH::Selection("Pbr Mode", "PBR material model", &rtxState.pbrMode, nullptr, Normal, {"Disney", "Gltf"});
 
-  changed |= GuiH::Selection("ReSTIR Debug Mode", "Display unique values of material", &rtxState.restirDebugMode, nullptr, Normal,
+  changed |= GuiH::Selection("ReSTIR Debug Mode", "", &rtxState.restirDebugMode, nullptr, Normal,
       {
           "No Debug",
 		  "Path Tracing",
           "Direct Light",
           "Hash Grid"
       });
+
+  float defaultRoughnessTrd = 0.02f;
+  changed |= GuiH::Slider("Roughness Threshold", "", &rtxState.roughnessThreshold, &defaultRoughnessTrd, ImGuiH::Control::Flags::Normal, 0.0f, 1.0f);
 
   static bool bAnyHit = true;
   if(_se->m_rndMethod == SampleExample::RndMethod::eRtxPipeline)
