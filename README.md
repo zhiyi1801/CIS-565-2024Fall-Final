@@ -134,7 +134,7 @@ Further analysis of rough surfaces and smooth surfaces demonstrates how our meth
 |:--:|:--:|
 | *Ours(Rough Surface)* | *Path Tracing(Rough Surface)* |
 
- | <img src="./imgs/Smooth.png" width=400> | <img src="./imgs/Smooth2.png" width=400> |
+ | <img src="./imgs/smooth.png" width=400> | <img src="./imgs/smooth2.png" width=400> |
 |:--:|:--:|
 | *Ours(Smooth Surface)* | *Path Tracing(Smooth Surface)* |
 
