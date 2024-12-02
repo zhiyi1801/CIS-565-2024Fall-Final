@@ -58,7 +58,7 @@ const uint cellSizeNoHash = 1000;
 const int RayTraceBlockSizeX = 8;
 const int RayTraceBlockSizeY = 8;
 
-const float roughnessThreshold = 0.1f;
+const float roughnessThreshold = 0.05f;
 
 // Sets
 START_ENUM(SetBindings)
@@ -277,7 +277,8 @@ struct RtxState
   vec3 cameraPos;
   float cameraFov;
 
-  vec3 padding1;
+  vec2 pad1;
+  float roughnessThreshold;
   uint cellCount;
 };
 

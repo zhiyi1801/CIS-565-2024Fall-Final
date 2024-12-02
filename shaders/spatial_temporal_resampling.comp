@@ -260,6 +260,7 @@ void StResample(ivec2 imageCoords)
 
 	// Write the temporal reservoir to the current buffer
 	currentReservoirs[idx] = temporalPrevReservoir;
+	barrier();
 
 	//--------------------------------------------------------------------------------------------------------------------
 	//********************************************************************************************************************
@@ -297,7 +298,7 @@ void StResample(ivec2 imageCoords)
 	}
 
 	// Get the cell base index and number of elements in the cell
-	uint cellBaseIdx = (cellIdx == 0) ? 0 : indexBuffer[cellIdx];
+	uint cellBaseIdx = (cellIdx == 0) ? 0 : indexBuffer[cellIdx - 1];
 	uint sampleCount = cellCounterBuffer[cellIdx];
 
 	spatialResv.M = clamp(spatialResv.M, 0, rtxState.reservoirClamp * 2);
@@ -332,6 +333,12 @@ void StResample(ivec2 imageCoords)
 		// Get the sample reservoir index
 		uint neighborPixelIndex = cellStorageBuffer[cellBaseIdx + (offset + i) % sampleCount];
 		Reservoir neighborResv = currentReservoirs[neighborPixelIndex];
+
+		int neighborCellIdx = FindCell(neighborResv.giSample.xv, neighborResv.giSample.nv, cellSize, params);
+		if(neighborCellIdx != cellIdx)
+		{
+			continue;
+		}
 
 		if(neighborResv.M <= 0 || 
 		dot(spatialResv.giSample.nv, neighborResv.giSample.nv) < 0.5)
@@ -398,7 +405,6 @@ void StResample(ivec2 imageCoords)
 		MList[nReuse] = neighborResv.M;
 		nReuse++;
 	}
-	// imageStore(resultImage, imageCoords, vec4(vec3(reuseIdx), 1.0f));
 
 	float z = 0;
 	float chosenWeight = 0.f;

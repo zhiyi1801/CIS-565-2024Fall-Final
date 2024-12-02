@@ -51,26 +51,21 @@ int FindOrInsertCell(vec3 pos, vec3 norm, float cellSize, GIParameter params, iv
 
     for(uint i = 0; i < 32; ++i)
     {
-    // Linear probing stride 32
-    uint idx = cellIndex * 32 + i;
+        // Linear probing stride 32
+        uint idx = cellIndex * 32 + i;
 
-    // Previous checksum 
-    uint checkSumPre;
+        // Previous checksum 
+        uint checkSumPre;
 
-    // Check if the cell is empty or the checksum is the same
-    // if empty(0), write the checksum and return idx
-    // if the same, return the idx
-    checkSumPre = atomicCompSwap(checkSumBuffer[idx], 0, checkSum);
+        // Check if the cell is empty or the checksum is the same
+        // if empty(0), write the checksum and return idx
+        // if the same, return the idx
+        checkSumPre = atomicCompSwap(checkSumBuffer[idx], 0, checkSum);
 
-    if(checkSumPre == 0 || checkSum == checkSumPre)
-    {
-        if(i == 31)
+        if(checkSumPre == 0 || checkSum == checkSumPre)
         {
-            // Debug
-            // imageStore(debugUintImage, imageCoords, uvec4(i, idx, cellIndex, 1));
+            return int(idx);
         }
-        return int(idx);
-    }
     }
     // Debug
     // imageStore(debugUintImage, imageCoords, uvec4(checkSum, 1, cellIndex, 1));
@@ -244,8 +239,8 @@ void main()
   // For Debug
   float cellSize = tan(120 * params.fov * max(1.0 / params.frameDim.y, params.frameDim.y / float((params.frameDim.x * params.frameDim.x))));
   // imageStore(resultImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), 0.0f), 1.0f));
-  // imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
-  // imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx), float(data.inCellIdx), cellSize), 1.0f));
+  imageStore(debugUintImage, imageCoords, uvec4(data.cellIdx, data.inCellIdx, 0, 1));
+  imageStore(debugImage, imageCoords, vec4(vec3(float(data.cellIdx)), 1.0f));
 
   // Cell Visualization
   float cellIdxF = float( (data.cellIdx / 32) % 256);

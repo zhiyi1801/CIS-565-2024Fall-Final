@@ -612,15 +612,16 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
                 break;
             }
 
-            // Get roughness
+            // Get roughness & metallic
             float matRoughness = state.mat.roughness;
+			float matMetallic = state.mat.metallic;
 
             // TODO
             // Set roughness threshold, now fixed, should be a variable 
             float kRoughnessThreshold = roughnessThreshold;
 
             // Flag shows if rough enough to reconnect
-            bool vertexClassifiedAsRough = matRoughness > kRoughnessThreshold;
+            bool vertexClassifiedAsRough = (matRoughness > kRoughnessThreshold) || (matMetallic < 0.2);
 
             // Track last vertex roughness
             pathState.isLastVertexClassifiedAsRough = uint(vertexClassifiedAsRough);
