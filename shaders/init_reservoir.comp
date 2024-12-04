@@ -109,34 +109,6 @@ int FindCell(vec3 pos, vec3 norm, float cellSize, GIParameter params)
   return -1;
 }
 
-//
-//--------------------------------------------------------------------------------------------------
-//
-Reservoir SetGIReservoir(InitialSample s)
-{
-  Reservoir initialReservoir;
-
-  initialReservoir.giSample.xv = s.preRcVertexPos;
-  initialReservoir.giSample.nv = s.preRcVertexNorm;
-  initialReservoir.giSample.xs = s.rcVertexPos;
-  initialReservoir.giSample.ns = s.rcVertexNorm;
-  initialReservoir.giSample.L = s.rcVertexLo;
-
-  initialReservoir.giSample.p = s.pdf;
-  initialReservoir.giSample.pHat = s.pHat;
-  initialReservoir.giSample.vMatId = s.preRcMatId;
-
-  initialReservoir.giSample.rcEnv = s.rcEnv;
-  initialReservoir.giSample.rcEnvDir = s.rcEnvDir;
-
-  initialReservoir.weightSum = s.pdf > 0 ? s.pHat/s.pdf : 0;
-  initialReservoir.bigW = s.pdf > 0.f ? 1.f / s.pdf : 0.f;
-  initialReservoir.M = 1u;
-  initialReservoir.age = 0;
-
-  return initialReservoir;
-}
-
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
 #ifndef SWIZZLED
@@ -230,8 +202,7 @@ void main()
   // angular value to radian
   params.fov = rtxState.cameraFov * (M_PI / 180.0f);
 
-  // Set initial reservoir
-  Reservoir r = SetGIReservoir(initialSampleBuffer[idx]);
+  Reservoir r = initialReservoirs[idx];
 
   // Build HashAppendData
   HashAppendData data = BuildHashAppendData(r.giSample.xv, r.giSample.nv, idx, params, imageCoords);
@@ -253,6 +224,5 @@ void main()
   // FinalSample finalSample;
   // finalSample.Li = data.isValid > 0 ? vec3(sin(data.cellIdx), cos(data.cellIdx), cos(data.cellIdx * 2.7445f + 1.4212f)) : vec3(0.f);
 
-  initialReservoirs[idx] = r;
   appendBuffer[idx] = data;
 }

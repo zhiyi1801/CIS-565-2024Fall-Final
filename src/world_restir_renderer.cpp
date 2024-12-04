@@ -124,7 +124,6 @@ void WorldRestirRenderer::update(const VkExtent2D& size)
 	m_pAlloc->destroy(m_AppendBuffer);
 	m_pAlloc->destroy(m_DebugImage);
 	m_pAlloc->destroy(m_DebugUintImage);
-	m_pAlloc->destroy(m_InitialSamples);
 	m_pAlloc->destroy(m_ReconnectionData);
 	m_pAlloc->destroy(m_IndexTempBuffer);
 	m_pAlloc->destroy(m_DebugUintBuffer);
@@ -152,7 +151,6 @@ void WorldRestirRenderer::destroy()
 {
 	m_pAlloc->destroy(m_InitialReservoir);
 	m_pAlloc->destroy(m_AppendBuffer);
-	m_pAlloc->destroy(m_InitialSamples);
 	m_pAlloc->destroy(m_ReconnectionData);
 	m_pAlloc->destroy(m_FinalSample);
 	m_pAlloc->destroy(m_DebugImage);
@@ -210,7 +208,6 @@ void WorldRestirRenderer::createBuffer()
 	m_FinalSample = m_pAlloc->createBuffer(elementCount * sizeof(FinalSample), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	m_InitialReservoir = m_pAlloc->createBuffer(elementCount * sizeof(Reservoir), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	m_AppendBuffer = m_pAlloc->createBuffer(elementCount * sizeof(HashAppendData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-	m_InitialSamples = m_pAlloc->createBuffer(elementCount * sizeof(InitialSample), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	m_ReconnectionData = m_pAlloc->createBuffer(elementCount * sizeof(ReconnectionData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	VkDeviceSize reseviorCount = 2 * elementCount;
@@ -333,7 +330,6 @@ void WorldRestirRenderer::createDescriptorSet()
 	m_bind.addBinding({ ReSTIRBindings::eIndex, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCheckSum, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eCellCounter, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
-	m_bind.addBinding({ ReSTIRBindings::eInitialSamples, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eReconnection, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 	m_bind.addBinding({ ReSTIRBindings::eIndexTemp, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flag });
 
@@ -370,7 +366,6 @@ void WorldRestirRenderer::updateDescriptorSet()
 		VkDescriptorBufferInfo prevReservoirBufInfo = { m_Reservoirs[!i].buffer, 0, reseviorCount * sizeof(Reservoir)};
 		VkDescriptorBufferInfo appendBufInfo = { m_AppendBuffer.buffer, 0, elementCount * sizeof(HashAppendData) };
 		VkDescriptorBufferInfo finalSampleBufInfo = { m_FinalSample.buffer, 0, elementCount * sizeof(FinalSample) };
-		VkDescriptorBufferInfo initialSampleBufInfo = { m_InitialSamples.buffer, 0, elementCount * sizeof(InitialSample) };
 		VkDescriptorBufferInfo reconnectionBufInfo = { m_ReconnectionData.buffer, 0, elementCount * sizeof(ReconnectionData) };
 
 		// Direct Light Reservoirs
@@ -399,7 +394,6 @@ void WorldRestirRenderer::updateDescriptorSet()
 		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndex, &indexBufInfo));
 		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCheckSum, &checkSumBufInfo));
 		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eCellCounter, &cellCounterBufInfo));
-		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eInitialSamples, &initialSampleBufInfo));
 		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eReconnection, &reconnectionBufInfo));
 		writes.emplace_back(m_bind.makeWrite(m_descSet[i], ReSTIRBindings::eIndexTemp, &indexTempBufInfo));
 
@@ -726,7 +720,6 @@ void WorldRestirRenderer::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& s
 	initialSamplePassBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 	initialSamplePassBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	initialSamplePassBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	initialSamplePassBarriers[0].buffer = m_InitialSamples.buffer;
 	initialSamplePassBarriers[0].offset = 0;
 	initialSamplePassBarriers[0].size = elementCount * sizeof(InitialSample);
 

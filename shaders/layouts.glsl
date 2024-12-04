@@ -74,7 +74,7 @@ layout(set = S_RESTIR, binding = eCell, scalar)   buffer _CellStorageBuffer { ui
 layout(set = S_RESTIR, binding = eIndex, scalar)   buffer _IndexBuffer { uint indexBuffer[]; };
 layout(set = S_RESTIR, binding = eCheckSum, scalar)   buffer _CheckSumBuffer { uint checkSumBuffer[]; };
 layout(set = S_RESTIR, binding = eCellCounter, scalar)   buffer _CellCounterBuffer { uint cellCounterBuffer[]; };
-layout(set = S_RESTIR, binding = eInitialSamples, scalar)   buffer _InitialSampleBuffer { InitialSample initialSampleBuffer[]; };
+
 layout(set = S_RESTIR, binding = eReconnection, scalar)   buffer _ReconnectionDataBuffer { ReconnectionData reconnectionDataBuffer[]; };
 layout(set = S_RESTIR, binding = eIndexTemp, scalar)   buffer _IndexTempBuffer { uint indexTempBuffer[]; };
 

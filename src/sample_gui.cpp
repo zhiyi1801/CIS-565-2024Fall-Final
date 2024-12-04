@@ -153,6 +153,7 @@ bool SampleGUI::guiRayTracing()
           "Direct Light",
           "Hash Grid"
       });
+  changed |= GuiH::Checkbox("Accumulate", "", (bool*)&rtxState.accumulate);
 
   float defaultRoughnessTrd = 0.02f;
   changed |= GuiH::Slider("Roughness Threshold", "", &rtxState.roughnessThreshold, &defaultRoughnessTrd, ImGuiH::Control::Flags::Normal, 0.0f, 1.0f);

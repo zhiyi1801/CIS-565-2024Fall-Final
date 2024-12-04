@@ -762,17 +762,22 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     reconnectionDataBuffer[idx].preRcVertexWo = pathState.preRcVertexWo;
     reconnectionDataBuffer[idx].preRcVertexHitInfo = pathState.preRcVertexHitInfo;
 
-    // Assign initialSample
-    initialSampleBuffer[idx].rcVertexLo = pathState.rcVertexRadiance;
-    initialSampleBuffer[idx].rcVertexPos = pathState.rcVertexPos;
-    initialSampleBuffer[idx].rcVertexNorm = pathState.rcVertexNorm;
-    initialSampleBuffer[idx].preRcVertexPos = pathState.preRcVertexPos;
-    initialSampleBuffer[idx].preRcVertexNorm = pathState.preRcVertexNorm;
-    initialSampleBuffer[idx].pdf = pathState.pdf;
-    initialSampleBuffer[idx].rcEnv = pathState.rcEnv;
-    initialSampleBuffer[idx].rcEnvDir = pathState.rcEnvDir;
-	initialSampleBuffer[idx].preRcMatId = pathState.preRcMatId;
-    initialSampleBuffer[idx].pHat = pHatIndirect(pathState.rcVertexRadiance);
+	// Assign the initial reservoir
+    Reservoir InitialResv;
+    InitialResv.giSample.xv = pathState.preRcVertexPos;
+    InitialResv.giSample.nv = pathState.preRcVertexNorm;
+    InitialResv.giSample.xs = pathState.rcVertexPos;
+    InitialResv.giSample.ns = pathState.rcVertexNorm;
+    InitialResv.giSample.L = pathState.rcVertexRadiance;
+
+    InitialResv.giSample.p = pathState.pdf;
+    InitialResv.giSample.vMatId = pathState.preRcMatId;
+
+    InitialResv.bigW = InitialResv.giSample.p > 0.f ? 1.f / InitialResv.giSample.p : 0.f;
+    InitialResv.M = 1u;
+    InitialResv.age = 0;
+
+	initialReservoirs[idx] = InitialResv;
 
     // Removing fireflies
     float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));

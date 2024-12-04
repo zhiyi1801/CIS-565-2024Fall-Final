@@ -115,7 +115,6 @@ eCell = 7,
 eIndex = 8,
 eCheckSum = 9,
 eCellCounter = 10,
-eInitialSamples = 11,
 eReconnection = 12,
 eIndexTemp = 13,
 eMotionVector = 14,
@@ -277,7 +276,8 @@ struct RtxState
   vec3 cameraPos;
   float cameraFov;
 
-  vec2 pad1;
+  uint pad1;
+  uint accumulate;
   float roughnessThreshold;
   uint cellCount;
 };
