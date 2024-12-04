@@ -770,6 +770,9 @@ vec3 samplePixel_Initial(ivec2 imageCoords, ivec2 sizeImage, uint idx)
     InitialResv.giSample.ns = pathState.rcVertexNorm;
     InitialResv.giSample.L = pathState.rcVertexRadiance;
 
+    InitialResv.giSample.rcEnv = pathState.rcEnv;
+    InitialResv.giSample.rcEnvDir = pathState.rcEnvDir;
+
     InitialResv.giSample.p = pathState.pdf;
     InitialResv.giSample.vMatId = pathState.preRcMatId;
 
