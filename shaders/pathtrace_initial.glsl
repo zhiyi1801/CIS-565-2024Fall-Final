@@ -498,6 +498,14 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             {
                 vec3 thp = pathState.prefixThp;
                 pathState.prefixPathRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
+
+                //vec3 thp = pathState.thp;
+                //pathState.rcVertexRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
+
+                //pathState.rcEnvDir = r.direction;
+                //pathState.rcEnv = 1;
+                //pathState.rcVertexPos = state.position + r.direction * INFINITY * 0.8;
+                //pathState.rcVertexNorm = -r.direction;
             }
             else
             {
@@ -518,6 +526,11 @@ vec3 PathTrace_Initial(Ray r, inout PathPayLoad pathState)
             {
                 vec3 thp = pathState.prefixThp;
                 pathState.prefixPathRadiance += thp * Li * MIS_weight;
+                //vec3 thp = pathState.thp;
+                //pathState.rcVertexRadiance += thp * rtxState.hdrMultiplier * Li * MIS_weight;
+
+                //pathState.rcVertexPos = state.position;
+                //pathState.rcVertexNorm = state.ffnormal;
             }
             else
             {

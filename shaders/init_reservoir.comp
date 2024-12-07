@@ -224,5 +224,6 @@ void main()
   // FinalSample finalSample;
   // finalSample.Li = data.isValid > 0 ? vec3(sin(data.cellIdx), cos(data.cellIdx), cos(data.cellIdx * 2.7445f + 1.4212f)) : vec3(0.f);
 
+  initialReservoirs[idx] = r;
   appendBuffer[idx] = data;
 }

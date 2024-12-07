@@ -101,6 +101,7 @@ void main()
 
 	// color = (data.pathPreRadiance + data.pathPreThp * bsdfCos * fSample.Li);
 	color = (data.pathPreThp * bsdfCos * fSample.Li);
+	color += metallicRoughness.y < rtxState.roughnessThreshold ? data.pathPreRadiance : vec3(0.0);
 	color = clampRadiance(color);
     color = HDRToLDR(color);
 
