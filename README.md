@@ -1,4 +1,4 @@
-ReSTIR with DirectX Raytracing
+World Space ReSTIR in Vulkan
 ================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Final Project**
