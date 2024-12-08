@@ -155,7 +155,33 @@ To enhance the visual quality of the final rendered images, we integrated Intel'
 While the denoising significantly improves image quality, its current implementation on the CPU introduces performance challenges. Each denoising step adds approximately 250ms per frame, which heavily impacts the real-time performance of the system. This bottleneck highlights the need for optimization, and we are actively exploring GPU-based acceleration to mitigate this issue and make the denoising process more efficient for interactive applications.
 
 ## Performance Analysis
-To be finished
+
+### Test Environment
+
+The test was conducted on:
+
+- Windows 11, i7-13700K @ 3.40 GHz, 32GB, RTX 4090 24GB
+- Visual Studio 2022
+- Test Scenes : garage scene with 3078 triangles, sponza scene with 262, 267 triangles and robot-toon scene with 115, 9994 triangles.
+- Benchmark: Rendering time per frame for each pass in milisecond.
+
+### Result 
+
+
+![](./imgs/a1.jpg)
+
+From the benchmark results, the initial sampling and G-buffer generation stages dominate the per-frame cost across different scene complexities. This is expected because these steps involve full-scene ray intersections and G-buffer output for every pixel, both of which scale with geometry complexity and scene coverage. In scenes with high triangle counts (e.g., Sponza or robot-toon), more rays intersect more detailed meshes, increasing the overhead of geometry traversal and intersection tests. This cost is significantly higher compared to subsequent stages, where the data primarily resides in readily accessible buffers or spatial structures.
+
+![](./imgs/a2.jpg)
+
+The hash grid construction, while influenced by the viewpoint and scene layout, exhibits relatively stable timings. This suggests that once the initial samples and G-buffer data are established, the hashing process—keyed by position and surface orientation—incurs a more consistent cost. Variations arise primarily from how densely samples cluster in certain areas of the scene, but the hashing mechanism itself scales predictably and does not balloon with scene complexity as dramatically as initial ray intersections do.
+
+Resampling timings show modest differences and remain relatively low. This indicates that the spatial and temporal lookups in the hash grid, as well as sample validation and weighting, are efficient. The process depends more on well-structured data from previous passes than on scene complexity, which keeps execution times stable.
+
+The final shading and post-processing phases are almost invariant to scene complexity. These steps rely mostly on evaluating a known set of samples and applying lightweight image-space operations. Their runtime is closely tied to screen resolution and the complexity of the shading models, rather than to raw geometric density. Consequently, once the samples are established and refined, these passes remain a minimal overhead portion of the pipeline.
+
+In summary, the observed performance distribution is driven mainly by the heavy geometric work upfront (initial sampling and G-buffer generation). Subsequent passes benefit from efficient spatial data structures and their reduced dependence on geometric complexity, resulting in more stable and predictable timing profiles across different scenes.
+
 
 ## Timeline
 *Click on the title for slides*
