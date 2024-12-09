@@ -95,7 +95,7 @@ Unlike screen-space buffers, the hash grid uses both position and normal data to
 
 The hash grid visualization demonstrates how the grid partitions a scene like `robot-toon` and `Sponza`, with distinct colors representing different cells. Samples within each cell share similar spatial and angular properties, making them ideal candidates for spatial reuse. This adaptive strategy reduces artifacts and improves the coherence of indirect lighting contributions in subsequent resampling stages.
 
- | <img src="./imgs/hash.gif" width=400> | <img src="./imgs/hash2.jpg" width=430> |
+ | <img src="./imgs/hash.gif" width=400> | <img src="./imgs/hash2.jpg" width=400> |
 |:--:|:--:|
 | *robot-toon* | *Sponza* |
 
