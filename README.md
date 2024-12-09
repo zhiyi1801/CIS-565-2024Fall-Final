@@ -144,6 +144,16 @@ Finally, the World Space ReSTIR GI gif combines all stages of the pipeline, incl
 |:--:|
 | *World Space ReSTIR GI* | 
 
+Here's another comparison we made with the [subway scene](https://sketchfab.com/3d-models/subway-train-interior-f90d26d89ad44da4af508648f870a816). The scene was tested under 1spp, 5 Iterations with 1,302,796 triangles. We can find that the performance of our method is way better than the traditional path tracing in this scene.
+
+ | <img src="./imgs/c1.jpg" width=400> | <img src="./imgs/c2.jpg" width=400> |
+|:--:|:--:|
+| *Ours* | *Path Tracing* |
+
+ | <img src="./imgs/c3.jpg" width=400> | <img src="./imgs/c4.jpg" width=400> |
+|:--:|:--:|
+| *Hash grids* | *Reference* |
+
 ### Open Image Denoiser(OIDN) Integration
 
 To enhance the visual quality of the final rendered images, we integrated Intel's Open Image Denoiser (OIDN) into our pipeline. OIDN uses deep learning to effectively remove noise from path-traced images, leveraging auxiliary data such as Albedo and Normal from the G-buffer along with the noisy Color output from the final shading pass. The result is a clean and visually appealing image that retains surface details and shading accuracy.
@@ -153,6 +163,7 @@ To enhance the visual quality of the final rendered images, we integrated Intel'
 | *OIDN Denoise Process* | 
 
 While the denoising significantly improves image quality, its current implementation on the CPU introduces performance challenges. Each denoising step adds approximately 250ms per frame, which heavily impacts the real-time performance of the system. This bottleneck highlights the need for optimization, and we are actively exploring GPU-based acceleration to mitigate this issue and make the denoising process more efficient for interactive applications.
+
 
 ## Performance Analysis
 
