@@ -140,7 +140,7 @@ Further analysis of rough surfaces and smooth surfaces demonstrates how our meth
 
 Finally, the World Space ReSTIR GI gif combines all stages of the pipeline, including indirect illumination. The final output demonstrates how our method handles both direct and indirect lighting seamlessly, achieving real-time performance with minimal bias and noise.
 
- | <img src="./imgs/final.jpg" width=400> | 
+ | <img src="./imgs/final2.jpg" width=400> | 
 |:--:|
 | *World Space ReSTIR GI* | 
 
