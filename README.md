@@ -213,7 +213,7 @@ In summary, the observed performance distribution is driven mainly by the heavy 
   - Fixed bugs for Temporal Reuse 
   - Fixed several bugs for DI
   - Project refactoring and code optimization 
-
+- [Final Presentation](imgs/565%20Final%20Presentation%20-%20google%20slides.pdf) 
 ## Limitations and Future Plan
 
 -  Currently we find that noise reduction in OIDN leads to severe rendering performance degradation, and we expect to upgrade the noise reduction method in the future.
